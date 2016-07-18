@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Steve Creps, 1988.                               */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -352,7 +352,7 @@ extern void heal_legs(int);
 
 /* ### do_name.c ### */
 
-extern void namewatchman(struct monst *mon, struct level *lev);
+extern struct monst *namewatchman(struct monst *mon, struct level *lev);
 extern struct monst *christen_monst(struct monst *, const char *);
 extern int do_oname(const struct nh_cmd_arg *);
 extern int do_tname(const struct nh_cmd_arg *);
@@ -511,7 +511,6 @@ extern boolean In_W_tower(int, int, const d_level *);
 extern void find_hell(d_level *);
 extern void goto_hell(boolean, boolean);
 extern void assign_level(d_level * dest, const d_level * src);
-extern void assign_rnd_level(d_level * dest, const d_level * src, int range);
 extern int induced_align(const d_level * dlev, int pct, enum rng rng);
 extern boolean Invocation_lev(const d_level * dlev);
 extern xchar level_difficulty(const d_level * dlev);
@@ -706,6 +705,8 @@ extern void swapinv(struct obj *oldobj, struct obj *newobj);
 extern void delallobj(int, int);
 extern void delobj(struct obj *);
 extern struct obj *sobj_at(int otyp, struct level *lev, int x, int y);
+extern boolean is_racial_equipment(struct monst *mon, struct obj *obj);
+extern int carried_alignment(void);
 extern struct obj *carrying(int);
 extern struct obj *carrying_questart(void);
 extern boolean obj_with_u(struct obj *);
@@ -1172,8 +1173,8 @@ extern boolean ranged_attk(const struct permonst *);
 extern boolean hates_silver(const struct permonst *);
 extern boolean passes_bars(const struct permonst *);
 extern boolean can_track(const struct permonst *);
-extern boolean breakarm(const struct permonst *);
-extern boolean sliparm(const struct permonst *);
+extern boolean breakarm(const struct permonst *, const struct objclass *oc);
+extern boolean sliparm(const struct permonst *, const struct objclass *oc);
 extern boolean sticks(const struct permonst *);
 extern int num_horns(const struct permonst *);
 extern boolean dmgtype(const struct permonst *, int);
@@ -1741,8 +1742,8 @@ extern void level_tele_impl(boolean wizard_tele);
 extern void domagicportal(struct trap *);
 extern void tele_trap(struct trap *);
 extern void level_tele_trap(struct trap *);
-extern void rloc_to(struct monst *, int, int);
-extern boolean rloc(struct monst *, boolean);
+extern void rloc_to(struct monst *, int, int, struct level *);
+extern boolean rloc(struct monst *, boolean, struct level *);
 extern boolean tele_restrict(struct monst *);
 extern void mtele_trap(struct monst *, struct trap *, int);
 extern int mlevel_tele_trap(struct monst *, struct trap *, boolean, int);
@@ -2001,7 +2002,7 @@ extern void save_worm(struct memfile *mf, struct level *lev);
 extern void free_worm(struct level *lev);
 extern void rest_worm(struct memfile *mf, struct level *lev);
 extern void place_wsegs(struct monst *);
-extern void remove_worm(struct monst *);
+extern void remove_worm(struct monst *, struct level *);
 extern void place_worm_tail_randomly(struct monst *, xchar, xchar, enum rng);
 extern int count_wsegs(struct monst *);
 
@@ -2021,6 +2022,7 @@ extern void update_mon_intrinsics(struct monst *, struct obj *, boolean,
 extern int find_mac(struct monst *);
 extern void m_dowear(struct monst *, boolean);
 extern struct obj *which_armor(const struct monst *, enum objslot);
+extern struct objclass *which_armor_oc(const struct monst *, enum objslot);
 extern void mon_break_armor(struct monst *, boolean);
 extern void bypass_obj(struct obj *);
 extern void clear_bypasses(void);

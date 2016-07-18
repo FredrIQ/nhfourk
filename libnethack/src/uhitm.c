@@ -35,7 +35,7 @@ check_caitiff(struct monst *mtmp)
 {
     if (Role_if(PM_KNIGHT) && u.ualign.type == A_LAWFUL &&
         (!mtmp->mcanmove || mtmp->msleeping || (mtmp->mflee && !mtmp->mavenge))
-        && u.ualign.record > -10) {
+        && UALIGNREC > -10) {
         pline(msgc_alignbad, "You caitiff!");
         adjalign(-1);
     }
@@ -139,7 +139,7 @@ find_roll_to_hit(struct monst *mtmp)
     check_caitiff(mtmp);
 
     /* attacking peaceful creatures is bad for the samurai's giri */
-    if (Role_if(PM_SAMURAI) && mtmp->mpeaceful && u.ualign.record > -10) {
+    if (Role_if(PM_SAMURAI) && mtmp->mpeaceful && UALIGNREC > -10) {
         pline(msgc_alignbad, "You dishonorably attack the innocent!");
         adjalign(-1);
     }
@@ -419,7 +419,8 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
             tmp = 0;
         else if (martial_bonus())
              /* bonus for martial arts */
-            tmp = rnd(4) + P_SKILL(P_MARTIAL_ARTS);
+            tmp = rnd(4 + (P_SKILL(P_MARTIAL_ARTS) * 2)) +
+                P_SKILL(P_MARTIAL_ARTS);
         else
             tmp = rnd(2);
         valid_weapon_attack = (tmp > 1);
@@ -628,22 +629,32 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                     }
                     if (isok(posn1.x, posn1.y) &&
                         (ctarg = m_at(level, posn1.x, posn1.y)) &&
+                        !DEADMONSTER(ctarg) &&
+                        (m_mx(ctarg) == posn1.x) && (m_my(ctarg) == posn1.y) &&
                         !ctarg->mtame && !ctarg->mpeaceful) {
                         hmon(ctarg, obj, thrown);
                     }
                     if (isok(posn2.x, posn2.y) &&
                         (ctarg = m_at(level, posn2.x, posn2.y)) &&
+                        !DEADMONSTER(ctarg) &&
+                        (m_mx(ctarg) == posn2.x) && (m_my(ctarg) == posn2.y) &&
                         !ctarg->mtame && !ctarg->mpeaceful) {
                         hmon(ctarg, obj, thrown);
                     }
                     if (P_SKILL(P_AXE) >= P_MASTER) {
                         if (isok(posn3.x, posn3.y) &&
                             (ctarg = m_at(level, posn3.x, posn1.y)) &&
+                            !DEADMONSTER(ctarg) &&
+                            (m_mx(ctarg) == posn3.x) &&
+                            (m_my(ctarg) == posn3.y) &&
                             !ctarg->mtame && !ctarg->mpeaceful) {
                             hmon(ctarg, obj, thrown);
                         }
                         if (isok(posn4.x, posn4.y) &&
                             (ctarg = m_at(level, posn4.x, posn4.y)) &&
+                            !DEADMONSTER(ctarg) &&
+                            (m_mx(ctarg) == posn4.x) &&
+                            (m_my(ctarg) == posn4.y) &&
                             !ctarg->mtame && !ctarg->mpeaceful) {
                             hmon(ctarg, obj, thrown);
                         }
@@ -952,7 +963,7 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
             pline(msgc_alignchaos,
                   "You dishonorably use a poisoned weapon!");
             adjalign(-sgn(u.ualign.type));
-        } else if ((u.ualign.type == A_LAWFUL) && (u.ualign.record > 0)) {
+        } else if ((u.ualign.type == A_LAWFUL) && (UALIGNREC > 0)) {
             pline(msgc_alignbad,
                   "You feel like an evil coward for using a poisoned weapon.");
             adjalign(-1);
@@ -993,7 +1004,7 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
         pline(msgc_combatalert, "You joust %s%s", mon_nam(mon),
               canseemon(mon) ? exclam(tmp) : ".");
         if ((jousting < 0) &&
-            !(Role_if(PM_KNIGHT) && u.ualign.record >= DEVOUT)) {
+            !(Role_if(PM_KNIGHT) && UALIGNREC >= DEVOUT)) {
             pline(msgc_itemloss, "Your %s shatters on impact!", xname(obj));
             /* (must be either primary or secondary weapon to get here) */
             u.twoweap = FALSE;  /* untwoweapon() is too verbose here */
@@ -1014,7 +1025,7 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
     } else
         /* VERY small chance of stunning opponent if unarmed. */
     if (unarmed && tmp > 1 && !thrown && !obj && !Upolyd) {
-        if (rnd(100) < P_SKILL(P_BARE_HANDED_COMBAT) && !bigmonst(mdat) &&
+        if (rnd(100) < (P_SKILL(P_BARE_HANDED_COMBAT) * 3 - 3) && !bigmonst(mdat) &&
             !thick_skinned(mdat)) {
             if (canspotmon(mon))
                 pline(msgc_combatalert, "%s %s from your powerful strike!",
@@ -2822,6 +2833,24 @@ passive(struct monst *mon, boolean mhit, int malive, uchar aatyp)
                   "You are jolted with electricity!");
             mdamageu(mon, tmp);
             break;
+        case AD_DISP:
+        {
+            const char *nambuf = Monnam(mon);
+            xchar tx = mon->mx, ty = mon->my;
+            mon->mtrapped = 0;
+            remove_monster(level, tx, ty);
+            u.ux0 = u.ux; u.uy0 = u.uy;
+            u.ux = tx;    u.uy = ty;
+            if (u.usteed) {
+                u.usteed->mx = u.ux; u.usteed->my = u.uy; }
+            /* TODO: handle you getting displaced into trap. */
+            place_monster(mon, u.ux0, u.uy0);
+            newsym(u.ux, u.uy);
+            newsym(mon->mx, mon->my);
+            pline_once(combat_msgc(mon, &youmonst, cr_hit),
+                       "%s displaces you!", nambuf);
+            break;
+        }
         case AD_SCLD:
             pline(msgc_levelsound, "%s %s oozes a foul stench.",
                   s_suffix(Monnam(mon)), mbodypart(mon, SKIN));
@@ -2973,7 +3002,8 @@ flash_hits_mon(struct monst *mtmp, struct obj *otmp)
             pline(msgc_consequence, "The flash awakens %s.", mon_nam(mtmp));
             res = 1;
         }
-    } else if (mtmp->data->mlet != S_LIGHT) {
+    } else if ((monsndx(mtmp->data) != PM_YELLOW_LIGHT) &&
+               (monsndx(mtmp->data) != PM_BLACK_LIGHT)) {
         if (!resists_blnd(mtmp)) {
             tmp = dist2(otmp->ox, otmp->oy, mtmp->mx, mtmp->my);
             if (useeit) {

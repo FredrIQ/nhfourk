@@ -50,13 +50,13 @@ BRANCH:		"Advent Calendar" @ (1, 5) portal
 LEVEL:		"oracle" "O" @ (5, 5)
 LEVALIGN:	neutral
 CHAINBRANCH:	"Sokoban" "oracle" + (1, 0) up
-RNDLEVEL:	"bigrm" "B" @ (13, 3) 40 7
+RNDLEVEL:	"bigrm" "B" @ (13, 3) 40 9
 CHAINBRANCH:	"The Quest" "oracle" + (6, 2) portal
 BRANCH:		"Fort Ludios" @ (18, 4) portal
-RNDLEVEL:	"medusa" "none" @ (-7, 2) 2
+RNDLEVEL:	"medusa" "none" @ (-7, 2) 3
 LEVALIGN:	chaotic
 RNDLEVEL:       "labyr" "L" @ (-2, 0) 40 3
-LEVEL:		"castle" "none" @ (-1, 0)
+RNDLEVEL:	"castle" "none" @ (-1, 0) 6
 CHAINBRANCH:	"Gehennom" "castle" + (0, 0) no_down
 BRANCH:		"The Elemental Planes" @ (1, 0) no_down up
 
@@ -124,9 +124,9 @@ DUNGEON:		"Sokoban" "none" (4, 0)
 DESCRIPTION:    mazelike
 ALIGNMENT:      neutral
 ENTRY:          -1
-RNDLEVEL:		"soko1" "none" @ (1, 0) 5
-RNDLEVEL:		"soko2" "none" @ (2, 0) 8
-RNDLEVEL:		"soko3" "none" @ (3, 0) 5
+RNDLEVEL:		"soko1" "none" @ (1, 0) 8
+RNDLEVEL:		"soko2" "none" @ (2, 0) 9
+RNDLEVEL:		"soko3" "none" @ (3, 0) 7
 RNDLEVEL:		"soko4" "none" @ (4, 0) 7
 
 #

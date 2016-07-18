@@ -327,13 +327,14 @@ bhitm(struct monst *user, struct monst *mtmp, struct obj *otmp)
     case WAN_TELEPORTATION:
     case SPE_TELEPORT_AWAY:
         known = TRUE;
-        if ((wandlevel != P_MASTER || selfzap) && tele_restrict(mtmp)) /* noteleport */
-            break;
-        if (level->flags.noteleport) { /* master zap on noteleport */
+        if ((wandlevel < P_EXPERT || selfzap) && tele_restrict(mtmp))
+            break; /* noteleport */
+        if (level->flags.noteleport) {
+            /* expert proficiency can bypass noteleport */
             if (mtmp == &youmonst)
                 safe_teleds(FALSE);
             else
-                rloc(mtmp, TRUE);
+                rloc(mtmp, TRUE, level);
             break;
         }
         if (mtmp == &youmonst)
@@ -2096,8 +2097,6 @@ backfire(struct obj *otmp)
     } else {
         pline(msgc_substitute, "%s suddenly explodes!", The(xname(otmp)));
         do_break_wand(otmp, FALSE);
-        losehp(dice(otmp->spe + 2, 6), killer_msg(DIED, "an exploding wand"));
-        useup(otmp);
     }
 }
 
@@ -3353,7 +3352,7 @@ zap_hit_mon(struct monst *mon, int type, int nd, struct obj **ootmp, int rayleve
         break;
     case ZT_SLEEP:
         tmp = 0;
-        sleep_monst(mon, dice(nd, 25),
+        sleep_monst(mon, dice(nd, 6),
                     type == ZT_WAND(ZT_SLEEP) ? WAND_CLASS : '\0');
         break;
     case ZT_DEATH:     /* death/disintegration */
@@ -3549,7 +3548,7 @@ zap_hit_u(int type, int nd, const char *fltxt, xchar sx, xchar sy, int raylevel)
             shieldeff(u.ux, u.uy);
             pline(msgc_playerimmune, "You don't feel sleepy.");
         } else {
-            helpless(dice(nd, 25), hr_asleep, "sleeping", NULL);
+            helpless(dice(nd, 6), hr_asleep, "sleeping", NULL);
         }
         break;
     case ZT_DEATH:

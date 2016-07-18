@@ -32,8 +32,8 @@ struct monst zeromonst; /* only address matters, value is irrelevant */
     m_initgrp(mtmp, lev, x, y, 3, f)
 #define m_initlgrp(mtmp, lev, x, y, f) \
     m_initgrp(mtmp, lev, x, y, 10, f)
-#define toostrong(monindx, lev)        (monstr[monindx] > lev)
-#define tooweak(monindx, lev)          (monstr[monindx] < lev)
+#define toostrong(monindx, lev)        (MONSTR(monindx) > lev)
+#define tooweak(monindx, lev)          (MONSTR(monindx) < lev)
 
 struct monst *
 newmonst(int extyp, int namelen)
@@ -245,6 +245,48 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
     case S_GIANT:
         if (rn2_on_rng(2, rng))
             mongets(mtmp, (mm != PM_ETTIN) ? BOULDER : CLUB, rng);
+        else if (mtmp->data->mflagsr == MRACE_GIANT && rn2_on_rng(2, rng)) {
+            mongets(mtmp, SLING, rng);
+            mongets(mtmp, (rn2_on_rng(3, rng) ? ROCK : FLINT), rng);
+        }
+        break;
+    case S_QUENDI:
+        if (rn2_on_rng(2, rng))
+            mongets(mtmp, rn2_on_rng(2, rng) ?
+                    ELVEN_MITHRIL_COAT : ELVEN_CLOAK, rng);
+        if (rn2_on_rng(2, rng))
+            mongets(mtmp, ELVEN_LEATHER_HELM, rng);
+        else if (!rn2_on_rng(4, rng))
+            mongets(mtmp, ELVEN_BOOTS, rng);
+        if (rn2_on_rng(2, rng))
+            mongets(mtmp, ELVEN_DAGGER, rng);
+        switch (rn2_on_rng(3, rng)) {
+        case 0:
+            if (!rn2_on_rng(4, rng))
+                mongets(mtmp, ELVEN_SHIELD, rng);
+            if (rn2_on_rng(3, rng))
+                mongets(mtmp, ELVEN_SHORT_SWORD, rng);
+            mongets(mtmp, ELVEN_BOW, rng);
+            m_initthrow(mtmp, ELVEN_ARROW, 12, rng);
+            break;
+        case 1:
+            mongets(mtmp, ELVEN_BROADSWORD, rng);
+            if (rn2_on_rng(2, rng))
+                mongets(mtmp, ELVEN_SHIELD, rng);
+            break;
+        case 2:
+            if (rn2_on_rng(2, rng)) {
+                mongets(mtmp, ELVEN_SPEAR, rng);
+                mongets(mtmp, ELVEN_SHIELD, rng);
+            }
+            break;
+        }
+        if (mm == PM_ELVENKING) {
+            if (rn2_on_rng(3, rng) || (in_mklev && Is_earthlevel(&u.uz)))
+                mongets(mtmp, PICK_AXE, rng);
+            if (!rn2_on_rng(50, rng))
+                mongets(mtmp, CRYSTAL_BALL, rng);
+        }
         break;
     case S_HUMAN:
         if (mtmp->iswiz) {
@@ -257,11 +299,6 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
             switch (mm) {
 
             case PM_WATCHMAN:
-                /* Naming them here ensures it happens when they are created
-                   normally, but not when they are loaded from bones or created
-                   from a statue or figurine.  Also PM_WATCH_CAPTAIN below.  */
-                namewatchman(mtmp, lev);
-                /* fall through */
             case PM_SOLDIER:
                 if (!rn2_on_rng(3, rng)) {
                     w1 = PARTISAN +
@@ -277,8 +314,6 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
                 w1 = rn2_on_rng(2, rng) ? BROADSWORD : LONG_SWORD;
                 break;
             case PM_WATCH_CAPTAIN:
-                namewatchman(mtmp, lev);
-                /* fall through */
             case PM_CAPTAIN:
                 w1 = rn2_on_rng(2, rng) ? LONG_SWORD : SILVER_SABER;
                 break;
@@ -295,43 +330,6 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
                 w2 = KNIFE;
             if (w2)
                 mongets(mtmp, w2, rng);
-        } else if (is_elf(ptr)) {
-            if (rn2_on_rng(2, rng))
-                mongets(mtmp, rn2_on_rng(2, rng) ?
-                        ELVEN_MITHRIL_COAT : ELVEN_CLOAK, rng);
-            if (rn2_on_rng(2, rng))
-                mongets(mtmp, ELVEN_LEATHER_HELM, rng);
-            else if (!rn2_on_rng(4, rng))
-                mongets(mtmp, ELVEN_BOOTS, rng);
-            if (rn2_on_rng(2, rng))
-                mongets(mtmp, ELVEN_DAGGER, rng);
-            switch (rn2_on_rng(3, rng)) {
-            case 0:
-                if (!rn2_on_rng(4, rng))
-                    mongets(mtmp, ELVEN_SHIELD, rng);
-                if (rn2_on_rng(3, rng))
-                    mongets(mtmp, ELVEN_SHORT_SWORD, rng);
-                mongets(mtmp, ELVEN_BOW, rng);
-                m_initthrow(mtmp, ELVEN_ARROW, 12, rng);
-                break;
-            case 1:
-                mongets(mtmp, ELVEN_BROADSWORD, rng);
-                if (rn2_on_rng(2, rng))
-                    mongets(mtmp, ELVEN_SHIELD, rng);
-                break;
-            case 2:
-                if (rn2_on_rng(2, rng)) {
-                    mongets(mtmp, ELVEN_SPEAR, rng);
-                    mongets(mtmp, ELVEN_SHIELD, rng);
-                }
-                break;
-            }
-            if (mm == PM_ELVENKING) {
-                if (rn2_on_rng(3, rng) || (in_mklev && Is_earthlevel(&u.uz)))
-                    mongets(mtmp, PICK_AXE, rng);
-                if (!rn2_on_rng(50, rng))
-                    mongets(mtmp, CRYSTAL_BALL, rng);
-            }
         } else if (mm == PM_NINJA || mm == PM_ROSHI) {
             m_initthrow(mtmp, SHURIKEN, 8, rng);
         } else if (ptr->msound == MS_PRIEST ||
@@ -1149,7 +1147,13 @@ makemon(const struct permonst *ptr, struct level *lev, int x, int y,
     mtmp->dlevel = lev;
     place_monster(mtmp, x, y);
     mtmp->mcansee = mtmp->mcanmove = TRUE;
-    mtmp->mpeaceful = (mmflags & MM_ANGRY) ? FALSE : peace_minded(ptr);
+    /* In sokoban, peaceful monsters are generally worse for the player
+       than hostile ones, so don't make them peaceful there.  Make an
+       exception to this for particularly nasty monsters. */
+    mtmp->mpeaceful = ((In_sokoban(&lev->z) && !extra_nasty(mtmp->data) &&
+                        !always_peaceful(mtmp->data)) ?
+                       FALSE : (mmflags & MM_ANGRY) ?
+                       FALSE : peace_minded(ptr));
 
     /* Calculate the monster's movement offset. The number of movement points a
        monster has at the start of a turn ranges over a range of 12 possible
@@ -1199,9 +1203,10 @@ makemon(const struct permonst *ptr, struct level *lev, int x, int y,
         if (hides_under(ptr) && OBJ_AT_LEV(lev, x, y))
             mtmp->mundetected = TRUE;
         break;
-    case S_LIGHT:
+    case S_WRAITH:
+    case S_EYE:
     case S_ELEMENTAL:
-        if (mndx == PM_STALKER || mndx == PM_BLACK_LIGHT) {
+        if (mndx == PM_STALKER || mndx == PM_BLACK_LIGHT || mndx == PM_GHOST) {
             mtmp->perminvis = TRUE;
             mtmp->minvis = TRUE;
         }
@@ -1312,6 +1317,17 @@ makemon(const struct permonst *ptr, struct level *lev, int x, int y,
     }
 
     if (allow_minvent) {
+        if ((monsndx(ptr) == PM_WATCHMAN) ||
+            (monsndx(ptr) == PM_WATCH_CAPTAIN)) {
+            /* Name them inside the allow_minvent check to ensure it happens
+               when they are created normally but not when they are loaded from
+               bones or created from a statue or figurine.  Do it before
+               starting to give them any inventory, because naming a monster
+               causes reallocation, which can result in inventory being
+               generated but not added to the correct monst struct. */
+            mtmp = namewatchman(mtmp, lev);
+            ptr  = mtmp->data;
+        }
         if (is_armed(ptr))
             m_initweap(lev, mtmp, stats_rng); /* equip with weapons / armor */
         m_initinv(mtmp, stats_rng);           /* more armor, other items */
@@ -1612,7 +1628,7 @@ rndmonst_inner(const d_level *dlev, char class, int ignoreflags, enum rng rng)
             }
             if (ignoreflags & G_INDEPTH && genprob) {
                 /* implement a rejection chance from the first check*/
-                int ood_distance = (int)monstr[mndx] - (int)maxmlev / 2;
+                int ood_distance = (int)MONSTR(mndx) - (int)maxmlev / 2;
                 if (ood_distance > 14)
                     ood_distance = 14; /* avoid integer overflow problems */
                 if (ood_distance <= 0)
@@ -1891,7 +1907,7 @@ mongets(struct monst *mtmp, int otyp, enum rng rng)
             otmp->quan = rne_on_rng(2, rng);
             otmp->owt = weight(otmp);
         }
-        if (otmp->otyp == FLINT) {
+        if (otmp->otyp == FLINT || otmp->otyp == ROCK) {
             otmp->quan += rn2_on_rng(4, rng);
             otmp->owt = weight(otmp);
         }
@@ -2003,18 +2019,18 @@ peace_minded(const struct permonst *ptr)
 
     /* minions are hostile to players that have strayed at all */
     if (is_minion(ptr))
-        return u.ualign.record >= 0;
+        return UALIGNREC >= 0;
 
     /* balance fix for 4.3-beta2: titan hostility has a major balance effect,
        so make it deterministic on the player alignment */
     if (monsndx(ptr) == PM_TITAN)
-        return u.ualign.record >= 8;
+        return UALIGNREC >= 8;
 
     /* Last case: a chance of a co-aligned monster being hostile.  This chance
-       is greater if the player has strayed (u.ualign.record negative) or the
+       is greater if the player has strayed (UALIGNREC negative) or the
        monster is not strongly aligned. */
     return ((boolean)
-            (rn2(16 + (u.ualign.record < -15 ? -15 : u.ualign.record)) &&
+            (rn2(16 + (UALIGNREC < -15 ? -15 : UALIGNREC)) &&
              rn2(2 + abs(mal))));
 }
 

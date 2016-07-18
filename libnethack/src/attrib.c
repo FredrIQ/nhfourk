@@ -133,7 +133,7 @@ static const struct innate sylph_abil[] = {
        certain conditions, and with hunger implications so that's
        special-cased elsewhere. */
     {5,  &(HInfravision), "perceptive", "half blind"},
-    {7,  &(HDisplacement), "elusive", "exposed"},
+    {7,  &(HDisplaced), "elusive", "exposed"},
     {16, &(HDetect_monsters), "perceptive", "dull"},
     {0, 0, 0, 0}
 };
@@ -469,8 +469,9 @@ exerper(void)
             break;
         case WEAK:
             exercise(A_STR, FALSE);
-            if (Role_if(PM_MONK))       /* fasting */
-                exercise(A_WIS, TRUE);
+            if (Role_if(PM_MONK) &&      /* fasting */
+                !rn2_on_rng(50, rng_role_alignment))
+                adjalign(1);
             break;
         case FAINTING:
         case FAINTED:
@@ -664,8 +665,11 @@ postadjabil(unsigned int *ability)
 {
     if (!ability)
         return;
-    if (ability == &(HWarning) || ability == &(HSee_invisible))
+    if (ability == &(HWarning) || ability == &(HSee_invisible) ||
+        ability == &(HDetect_monsters))
         see_monsters(FALSE);
+    if (ability == &(HFire_resistance))
+        spoteffects(FALSE);
 }
 
 void
@@ -996,9 +1000,9 @@ get_player_ac(void)
         player_ac -= ARM_BONUS(uarmf);
     if (uarms) {
         int armb = ARM_BONUS(uarms);
-        int mult = P_SKILL(P_SHIELD) - 1;
+        int mult = P_SKILL(P_SHIELD);
         if (armb > 0)
-            player_ac -= (armb * mult);
+            player_ac -= (armb * mult) / 2;
         else
             player_ac -= (mult - armb);
     }
@@ -1035,20 +1039,19 @@ adjalign(int n)
                 break_conduct(conduct_lostalign);
             }
             u.ualign.record = newalign;
-            if (u.ualign.record < SEARED_CONSCIENCE) {
+            if (UALIGNREC < SEARED_CONSCIENCE) {
                 /* No warning -- your conscience no longer works. */
-            } else if (u.ualign.record < SINNED) {
+            } else if (UALIGNREC < SINNED) {
                 pline(msgc_alignbad,
                       "You have stopped listening to your conscience.");
-            } else if (u.ualign.record < STRAYED) {
-                pline(msgc_alignbad,
-                      "You ignore your conscience.");
-            } else if (u.ualign.record < HALTINGLY) {
+            } else if (UALIGNREC < STRAYED) {
+                pline(msgc_alignbad, "You ignore your conscience.");
+            } else if (UALIGNREC < HALTINGLY) {
                 pline(msgc_alignbad,
                       "Your conscience bothers you, but you dismiss it.");
-            } else if (u.ualign.record < FERVENT) {
+            } else if (UALIGNREC < FERVENT) {
                 pline(msgc_alignbad, "Your conscience bothers you.");
-            } else if (u.ualign.record < PIOUS) {
+            } else if (UALIGNREC < PIOUS) {
                 pline(msgc_alignbad,
                    "You hesitate for a moment, bothered by your conscience.");
             } else {
@@ -1060,21 +1063,21 @@ adjalign(int n)
                                 INIT_ALIGNREC((aligns[u.initalign]).value)))) {
         u.ualign.record = newalign;
         if (u.uconduct[conduct_lostalign]) {
-            if (u.ualign.record < SINNED) {
+            if (UALIGNREC < SINNED) {
                 ; /* No message -- let 'em sweat a bit. */
-            } else if (u.ualign.record < NOMINALLY) {
+            } else if (UALIGNREC < NOMINALLY) {
                 pline(msgc_aligngood,
                       "Your conscience bothers you just a little less.");
-            } else if (u.ualign.record < PIOUS) {
+            } else if (UALIGNREC < PIOUS) {
                 pline(msgc_aligngood,
                       "Your conscience bothers you a little less.");
-            } else if (u.ualign.record == PIOUS) {
+            } else if (UALIGNREC == PIOUS) {
                 pline(msgc_aligngood, "Your conscience is assuaged.");
             }
         }
     } else if (!(u.ualign.record == newalign)) {
         u.ualign.record = newalign;
-        if (u.ualign.record == PIOUS) {
+        if (UALIGNREC == PIOUS) {
             pline(msgc_aligngood, "Your conscience is clear.");
         }
     }

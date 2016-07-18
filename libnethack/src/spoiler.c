@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Nathan Eady, 2015-05-19 */
+/* Last modified by Nathan Eady, 2016-06-01 */
 /* File opening code based on the xlogfile code. */
 /* Object-looping code based on makedefs.c */
 /* Concept based on Autospoil, by Cristan Szmajda
@@ -24,6 +24,7 @@ static const char * htmlheader(const char *spoilername);
 static const char * spoiloname(int i);
 static const char * spoilweapskill(int i);
 static const char * spoilschool(int i);
+static const char * spoilversus(struct artifact *art);
 static const char * spoildamage(int i, boolean large, struct artifact *);
 #define SDAM FALSE
 #define LDAM TRUE
@@ -33,9 +34,13 @@ static const char * spoilmaligntyp(int i);
 static const char * spoilaligntyp(aligntyp aln);
 static const char * spoiloneattack(const struct attack *attk);
 static const char * spoilattacks(int i);
+static const char * spoilmonskills(int i);
 static const char * spoilresistances(uchar res, boolean convey, int i);
-static const char * spoilmonsize(int i);
+static const char * spoilmonsize(uchar s);
 static const char * spoilmrace(int i);
+static const char * spoilmonflagone(unsigned long mflags);
+static const char * spoilmonflagtwo(unsigned long mflags, boolean dorace);
+static const char * spoilmonflagthree(unsigned long mflags);
 static const char * spoilmonflags(int i);
 static void spoilobjclass(FILE *file, const char *hrname, const char *aname,
                           int classone, int classtwo);
@@ -46,14 +51,35 @@ static const char * spoilarteffects(struct artifact *art,
                                     unsigned long spfx, struct attack attk);
 static const char * spoilartinvoke(struct artifact *art);
 static const char * spoilartotherinfo(struct artifact *art);
+static const char * spoilgenders(short allow);
+static const char * spoilaligns(short allow);
+static const char * spoilraceroles(short allow);
+static const char * spoilroleraces(short allow);
+static const char * attrlabel(int i);
+static const char * spoilattributes(const char *labelone, const xchar *attrone,
+                                    const char *labeltwo, const xchar *attrtwo,
+                                    const char *labelthr, const xchar *attrthr);
+static const char * spoiladvancerow(const char *label,
+                                    const struct RoleAdvance *adv);
+static const char * spoiladvance(const char *labelone,
+                                 const struct RoleAdvance *advone,
+                                 const char *labeltwo,
+                                 const struct RoleAdvance *advtwo, int cutoff);
+static const char * spoilspellpenalty(const char *class, const char *label,
+                                      int p);
+static const char * spoilrolespellcasting(int i);
+static const char * spoilquestart(int i);
 static void makehtmlspoilers(void);
 static void makepinobotyaml(void);
 
-const char *at[17] =
+#define ATSIZE 18
+const char *at[ATSIZE] =
         {"passive", "claw", "bite", "kick", "butt", "touch",
          "sting", "hug", "AT_8", "AT_9", "spit", "engulf", "breath",
-         "actively explode", "passively explode", "gaze", "tentacles"};
-const char *ad[47] =
+         "actively explode", "passively explode", "gaze", "tentacles",
+         "spin"};
+#define ADSIZE 49
+const char *ad[ADSIZE] =
         {"physical", "magic missile", "fire", "cold", "sleep", "disint",
          "shock", "strength drain", "acid", "special1", "special2",
          "blinding", "stun", "slow", "paralysis", "level drain",
@@ -64,7 +90,7 @@ const char *ad[47] =
          "intelligence drain", "disease", "rotting", "seduction",
          "hallucination", "death", "pestilence", "famine", "sliming",
          "disenchantment", "corrosion", "vicarous suffering",
-         "stinking cloud", "pits", "iceblock"};
+         "stinking cloud", "pits", "iceblock", "displace", "web"};
 
 /* NOTE: the order of these words exactly corresponds to the
    order of oc_material values #define'd in objclass.h.  I
@@ -85,8 +111,11 @@ htmlheader(const char * spoilername)
     const char *copyright   = "<!-- HTML Markup by Nathan Eady is public domain or CC0 at your option -->";
     const char *csslink     = "<link rel=\"stylesheet\" type=\"text/css\" href=\"spoilers.css\" />";
     return msgprintf("<html><head><title>%s %s Spoiler</title>\n%s\n%s\n%s\n</head><body>"
-                     "<p>This spoiler pertains to %s version %s.</p>",
-                     variantname, spoilername, createdby, copyright, csslink, variantname, version);
+                     "<p>This spoiler pertains to <span class=\"variant\">%s</span> "
+                     "   <span class=\"nhversion\">version <span class=\"versionnumber\">%s</span>.\n"
+                     "   <span class=\"generated\">Generated <span class=\"gendate\">%ld</span>.</span></p>",
+                     variantname, spoilername, createdby, copyright, csslink, variantname, version,
+                     yyyymmdd(utc_time()));
 }
 
 const char *
@@ -117,11 +146,41 @@ spoilschool(int i)
 }
 
 const char *
+spoilversus(struct artifact *art)
+{
+    const struct permonst *pm;
+    /* Other Relevant SPFX_ things: DBONUS */
+    if (!(art->spfx & (SPFX_DBONUS | SPFX_ATTK))) {
+        return (art->attk.adtyp == AD_PHYS) ? "vs all" : "vs none";
+    } else if (art->spfx & SPFX_DMONS) {
+        pm = &mons[(int)art->mtype];
+        return msgprintf("vs %s", pm->mname);
+        // TODO: improve on this
+    } else if (art->spfx & SPFX_DCLAS) {
+        return msgprintf("vs %c - %s",
+                         ((char) def_monsyms[(int) art->mtype]),
+                         monexplain[(int) art->mtype]);
+    } else if (art->spfx & SPFX_DFLAG1) {
+        return msgprintf("vs %s", spoilmonflagone(art->mtype));
+    } else if (art->spfx & SPFX_DFLAG2) {
+        return msgprintf("vs %s", spoilmonflagtwo(art->mtype, TRUE));
+    } else if (art->spfx & SPFX_DALIGN) {
+        return "vs cross-aligned";
+    } else if (art->spfx & SPFX_ATTK) {
+        return "vs non-resistant";
+    }
+    return "N/A";
+}
+
+const char *
 spoildamage(int i, boolean large, struct artifact *art)
 {
     int dmg = large ? objects[i].oc_wldam : objects[i].oc_wsdam;
-    const char *bonus = (art && art->attk.damd) ?
-        msgprintf("<span class=\"dbon\">+d%d</span>", art->attk.damd) : "";
+    const char *bonus = (art) ?
+        (art->attk.damd ? msgprintf("<span class=\"dbon\">+%s%d</span>",
+                                    ((art->attk.damd == 1) ? "" : "d"),
+                                    art->attk.damd)
+                        : ("<span class=\"dbon dbldam\">x2</span>")) : "";
     return msgprintf("d%d%s", dmg, bonus);
 }
 
@@ -176,6 +235,19 @@ oslotname(enum objslot os)
 }
 
 static const char *
+spoilarmorsize(struct objclass *oc)
+{
+    uchar minsize = (uchar) abs(oc->a_minsize);
+    uchar maxsize = (uchar) abs(oc->a_maxsize);
+    if (maxsize > minsize) {
+        return msgprintf("<span class=\"range\">%s&nbsp;&mdash; %s</span>",
+                         spoilmonsize(minsize), spoilmonsize(maxsize));
+    } else {
+        return spoilmonsize(maxsize);
+    }
+}
+
+static const char *
 semicolonjoin(const char *a, const char *b)
 {
     if (b[0])
@@ -220,14 +292,14 @@ spoiloneattack(const struct attack *attk)
                      attk->damn, attk->damd,
                      ((attk->aatyp == AT_WEAP) ? "weapon" :
                       (attk->aatyp == AT_MAGC) ? "spellcasting" :
-                      (attk->aatyp < 17 /* && attk->aatyp >= 0 */) ?
+                      (attk->aatyp < ATSIZE  /* && attk->aatyp >= 0 */) ?
                       at[attk->aatyp] : "mysterious"),
                      ((attk->adtyp == AD_CLRC) ? "clerical spellcasting" :
                       (attk->adtyp == AD_SPEL) ? "arcane spellcasting" :
                       (attk->adtyp == AD_RBRE) ? "random breath weapon" :
                       (attk->adtyp == AD_SAMU) ? "amulet stealing" :
                       (attk->adtyp == AD_CURS) ? "intrinsic stealing" :
-                      (attk->adtyp < 47 /* && attk->adtyp >= 0 */) ?
+                      (attk->adtyp < ADSIZE /* && attk->adtyp >= 0 */) ?
                       ad[attk->adtyp] : "unknown damage"));
 }
 
@@ -242,6 +314,28 @@ spoilattacks(int i)
                          semicolonjoin(spoiloneattack(&mons[i].mattk[3]),
            semicolonjoin(spoiloneattack(&mons[i].mattk[4]),
                          spoiloneattack(&mons[i].mattk[5]))))));
+}
+
+static const char *
+spoilskill(const char *label, unsigned int mskill, int proficiency)
+{
+    short level = ((mskill / proficiency) % 4);
+    if (level < 1) return "";
+    const char *levdesc = ((level == 1) ? "Basic" :
+                           (level == 2) ? "Skilled" : "Expert");
+    return msgprintf("<span class=\"skill %sskill\">"
+                     "<span class=\"label\">%s:</span> "
+                     "<span class=\"level\">%s</span></span>",
+                     label, label, levdesc);
+}
+
+static const char *
+spoilmonskills(int i)
+{
+    /* If support for other skills is added to the game,
+       we should add spoiler info for them here as well.
+       For now, there's only wand skill: */
+    return spoilskill("wand", mons[i].mskill, MP_WANDS);
 }
 
 static const char *
@@ -269,14 +363,14 @@ spoilresistances(uchar res, boolean convey, int i)
 }
 
 static const char *
-spoilmonsize(int i)
+spoilmonsize(uchar s)
 {
-    uchar s = mons[i].msize;
     const char * size[8] =
         { "<span class=\"sizetiny\">tiny</span>",
           "<span class=\"sizesmall\">small</span>",
           "<span class=\"sizemedium\">medium</span>",
           "<span class=\"sizelarge\">large</span>",
+          "<span class=\"huge\">huge</span>",
           "<span class=\"error unknownsize\">size 5</span>",
           "<span class=\"error unknownsize\">size 6</span>",
           "<span class=\"sizegigantic\">gigantic</span>"};
@@ -306,110 +400,133 @@ spoilmrace(int i)
 }
 
 static const char *
-spoilmonflags(int i)
+spoilmonflagone(unsigned long mflags)
 {
-    return msgprintf("%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s"   /* M1 */
-                     "%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s%s" /* M1 */
-                     "%s%s%s"           "%s%s%s%s%s%s"       /* M2 */
-                     "%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s"   /* M2 */
-                     "%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s",      /* M3 */
+    return msgprintf("%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s"
+                     "%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s%s",
                      /* M1 least significant byte */
-                     ((mons[i].mflags1 & M1_FLY)       ? "<span class=\"flgfly\">Fly</span> " : ""),
-                     ((mons[i].mflags1 & M1_SWIM)      ? "<span class=\"flgswim\">Swim</span> " : ""),
-                     ((mons[i].mflags1 & M1_AMORPHOUS) ? "<span class=\"flgamorph\">Amorph</span> " : ""),
-                     ((mons[i].mflags1 & M1_WALLWALK)  ? "<span class=\"flgwwalk\">Wallwalk</span> " : ""),
-                     ((mons[i].mflags1 & M1_CLING)     ? "<span class=\"flgcling\">Cling</span> " : ""),
-                     (((mons[i].mflags1 & M1_TUNNEL) && !(mons[i].mflags1 & M1_NEEDPICK)) ?
+                     ((mflags & M1_FLY)       ? "<span class=\"flgfly\">Fly</span> " : ""),
+                     ((mflags & M1_SWIM)      ? "<span class=\"flgswim\">Swim</span> " : ""),
+                     ((mflags & M1_AMORPHOUS) ? "<span class=\"flgamorph\">Amorph</span> " : ""),
+                     ((mflags & M1_WALLWALK)  ? "<span class=\"flgwwalk\">Wallwalk</span> " : ""),
+                     ((mflags & M1_CLING)     ? "<span class=\"flgcling\">Cling</span> " : ""),
+                     (((mflags & M1_TUNNEL) && !(mflags & M1_NEEDPICK)) ?
                                                          "<span class=\"flgtunnel\">Tunnel</span> " : ""),
-                     ((mons[i].mflags1 & M1_NEEDPICK)  ? "<span class=\"flgpick\">Pick</span> " : ""),
-                     ((mons[i].mflags1 & M1_CONCEAL)   ? "<span class=\"flgconceal\">Conceal/span> " : ""),
+                     ((mflags & M1_NEEDPICK)  ? "<span class=\"flgpick\">Pick</span> " : ""),
+                     ((mflags & M1_CONCEAL)   ? "<span class=\"flgconceal\">Conceal/span> " : ""),
                      /* M1 second least byte */
-                     ((mons[i].mflags1 & M1_HIDE)       ? "<span class=\"flghide\">Hide</span> " : ""),
-                     ((mons[i].mflags1 & M1_AMPHIBIOUS) ? "<span class=\"flgamphib\">Amphib</span> " : ""),
-                     ((mons[i].mflags1 & M1_BREATHLESS) ? "<span class=\"flgbreathless\">Breathless</span> " : ""),
-                     ((mons[i].mflags1 & M1_NOTAKE)     ? "<span class=\"flgnotake\">NoTake</span> " : ""),
-                     ((mons[i].mflags1 & M1_NOEYES)     ? "<span class=\"flgnoeyes\">NoEyes</span> " : ""),
-                     ((mons[i].mflags1 & M1_NOHANDS)    ? "<span class=\"flgfly\">NoHands</span> " : ""),
-                     ((mons[i].mflags1 & M1_NOLIMBS)    ? "<span class=\"flgfly\">NoLimbs</span> " : ""),
-                     ((mons[i].mflags1 & M1_NOHEAD)     ? "<span class=\"flgnohead\">NoHead</span> " : ""),
+                     ((mflags & M1_HIDE)       ? "<span class=\"flghide\">Hide</span> " : ""),
+                     ((mflags & M1_AMPHIBIOUS) ? "<span class=\"flgamphib\">Amphib</span> " : ""),
+                     ((mflags & M1_BREATHLESS) ? "<span class=\"flgbreathless\">Breathless</span> " : ""),
+                     ((mflags & M1_NOTAKE)     ? "<span class=\"flgnotake\">NoTake</span> " : ""),
+                     ((mflags & M1_NOEYES)     ? "<span class=\"flgnoeyes\">NoEyes</span> " : ""),
+                     ((mflags & M1_NOHANDS)    ? "<span class=\"flgfly\">NoHands</span> " : ""),
+                     ((mflags & M1_NOLIMBS)    ? "<span class=\"flgfly\">NoLimbs</span> " : ""),
+                     ((mflags & M1_NOHEAD)     ? "<span class=\"flgnohead\">NoHead</span> " : ""),
                      /* M1 third byte */
-                     ((mons[i].mflags1 & M1_MINDLESS)   ? "<span class=\"flgmindless\">Mindless</span> " : ""),
-                     ((mons[i].mflags1 & M1_HUMANOID)   ? "<span class=\"flghumanoid\">Humanoid</span> " : ""),
-                     ((mons[i].mflags1 & M1_ANIMAL)     ? "<span class=\"flganimal\">Animal</span> " : ""),
-                     ((mons[i].mflags1 & M1_SLITHY)     ? "<span class=\"flgslithy\">Slithy</span> " : ""),
-                     ((mons[i].mflags1 & M1_UNSOLID)    ? "<span class=\"flgunsolid\">Unsolid</span> " : ""),
-                     ((mons[i].mflags1 & M1_THICK_HIDE) ? "<span class=\"flgthickhide\">ThickHide</span> " : ""),
-                     ((mons[i].mflags1 & M1_OVIPAROUS)  ? "<span class=\"flgoviparous\">Oviparous</span> " : ""),
-                     ((mons[i].mflags1 & M1_REGEN)      ? "<span class=\"flgregen\">Regen</span> " : ""),
+                     ((mflags & M1_MINDLESS)   ? "<span class=\"flgmindless\">Mindless</span> " : ""),
+                     ((mflags & M1_HUMANOID)   ? "<span class=\"flghumanoid\">Humanoid</span> " : ""),
+                     ((mflags & M1_ANIMAL)     ? "<span class=\"flganimal\">Animal</span> " : ""),
+                     ((mflags & M1_SLITHY)     ? "<span class=\"flgslithy\">Slithy</span> " : ""),
+                     ((mflags & M1_UNSOLID)    ? "<span class=\"flgunsolid\">Unsolid</span> " : ""),
+                     ((mflags & M1_THICK_HIDE) ? "<span class=\"flgthickhide\">ThickHide</span> " : ""),
+                     ((mflags & M1_OVIPAROUS)  ? "<span class=\"flgoviparous\">Oviparous</span> " : ""),
+                     ((mflags & M1_REGEN)      ? "<span class=\"flgregen\">Regen</span> " : ""),
                      /* M1 most significant byte */
-                     ((mons[i].mflags1 & M1_SEE_INVIS)  ? "<span class=\"flgseeinvis\">SeeInvis</span> " : ""),
-                     ((mons[i].mflags1 & M1_TPORT)      ? "<span class=\"flgtport\">Tport</span> " : ""),
-                     ((mons[i].mflags1 & M1_TPORT_CNTRL)? "<span class=\"flgtportcntrl\">TeleCtrl</span> " : ""),
-                     ((mons[i].mflags1 & M1_ACID)       ? "<span class=\"flgacid\">Acidic</span> " : ""),
-                     ((mons[i].mflags1 & M1_POIS)       ? "<span class=\"flgpois\">Poisonous</span> " : ""),
-                     (((mons[i].mflags1 & M1_CARNIVORE) && !(mons[i].mflags1 & M1_HERBIVORE)) ?
+                     ((mflags & M1_SEE_INVIS)  ? "<span class=\"flgseeinvis\">SeeInvis</span> " : ""),
+                     ((mflags & M1_TPORT)      ? "<span class=\"flgtport\">Tport</span> " : ""),
+                     ((mflags & M1_TPORT_CNTRL)? "<span class=\"flgtportcntrl\">TeleCtrl</span> " : ""),
+                     ((mflags & M1_ACID)       ? "<span class=\"flgacid\">Acidic</span> " : ""),
+                     ((mflags & M1_POIS)       ? "<span class=\"flgpois\">Poisonous</span> " : ""),
+                     (((mflags & M1_CARNIVORE) && !(mflags & M1_HERBIVORE)) ?
                                                           "<span class=\"flgcarnivore\">Carnivore</span> " : ""),
-                     (((mons[i].mflags1 & M1_HERBIVORE) && !(mons[i].mflags1 & M1_CARNIVORE))  ?
+                     (((mflags & M1_HERBIVORE) && !(mflags & M1_CARNIVORE))  ?
                                                           "<span class=\"flgherbivore\">Herbivore</span> " : ""),
-                     ((mons[i].mflags1 & M1_OMNIVORE)   ? "<span class=\"flgomnivore\">Omnivore</span> " : ""),
-                     ((mons[i].mflags1 & M1_METALLIVORE)? "<span class=\"flgmetallivore\">Metallivore</span> " : ""),
+                     ((mflags & M1_OMNIVORE)   ? "<span class=\"flgomnivore\">Omnivore</span> " : ""),
+                     ((mflags & M1_METALLIVORE)? "<span class=\"flgmetallivore\">Metallivore</span> " : ""));
+}
+
+static const char *
+spoilmonflagtwo(unsigned long mflags, boolean dorace)
+{
+    return msgprintf("%s%s%s%s%s"       "%s%s%s%s%s%s"
+                     "%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s%s%s",
                      /* M2 least significant byte */
-                     ((mons[i].mflags2 & M2_NOPOLY)     ? "<span class=\"flgnopoly\">NoPoly</span> " : ""),
-                     ((mons[i].mflags2 & M2_UNDEAD)     ? "<span class=\"flgundead\">Undead</span> " : ""),
-                     ((mons[i].mflags2 & M2_WERE)       ? "<span class=\"flgwere\">Lycanthrope</span> " : ""),
+                     ((mflags & M2_NOPOLY)     ? "<span class=\"flgnopoly\">NoPoly</span> " : ""),
+                     ((mflags & M2_UNDEAD)     ? "<span class=\"flgundead\">Undead</span> " : ""),
+                     ((mflags & M2_WERE)       ? "<span class=\"flgwere\">Lycanthrope</span> " : ""),
                      /* human, dwarf, elf, orc, and gnome are moved to MRACE, q.v. */
-                     /* Well, I mean, a couple of them do have M2 flags for artifact reasons, but
-                        that's an implementation detail.  MRACE tells you what you want to know. */
+                     /* However, for artifact purposes, a couple of them still have an M2_ flag,
+                        which we may want to show (e.g., for an SPFX_DFLAG2 artifact) */
+                     ((dorace && (mflags & M2_ELF))
+                                               ? "<span class=\"flgelf\">Elf</span> " : ""),
+                     ((dorace && (mflags & M2_ORC))
+                                               ? "<span class=\"flgorc\">Orc</span> " : ""),
                      /* M2 second least byte */
-                     ((mons[i].mflags2 & M2_DEMON)      ? "<span class=\"flgdemon\">Demon</span> " : ""),
-                     ((mons[i].mflags2 & M2_MERC)       ? "<span class=\"flgmerc\">Mercinary</span> " : ""),
-                     ((mons[i].mflags2 & M2_LORD)       ? "<span class=\"flglord\">Lord</span> " : ""),
-                     ((mons[i].mflags2 & M2_PRINCE)     ? "<span class=\"flgprince\">Prince</span> " : ""),
-                     ((mons[i].mflags2 & M2_MINION)     ? "<span class=\"flgminion\">Minion</span> " : ""),
-                     ((mons[i].mflags2 & M2_GIANT)      ? "<span class=\"flggiant\">Giant</span> " : ""),
+                     ((mflags & M2_DEMON)      ? "<span class=\"flgdemon\">Demon</span> " : ""),
+                     ((mflags & M2_MERC)       ? "<span class=\"flgmerc\">Mercinary</span> " : ""),
+                     ((mflags & M2_LORD)       ? "<span class=\"flglord\">Lord</span> " : ""),
+                     ((mflags & M2_PRINCE)     ? "<span class=\"flgprince\">Prince</span> " : ""),
+                     ((mflags & M2_MINION)     ? "<span class=\"flgminion\">Minion</span> " : ""),
+                     ((mflags & M2_GIANT)      ? "<span class=\"flggiant\">Giant</span> " : ""),
                       /* There are two open bits here */
                       /* M2 third byte */
-                     ((mons[i].mflags2 & M2_MALE)       ? "<span class=\"flgmale\">Male</span> " : ""),
-                     ((mons[i].mflags2 & M2_FEMALE)     ? "<span class=\"flgfemale\">Female</span> " : ""),
-                     ((mons[i].mflags2 & M2_NEUTER)     ? "<span class=\"flgneuter\">Neuter</span> " : ""),
-                     ((mons[i].mflags2 & M2_PNAME)      ? "<span class=\"flgpname\">ProperName</span> " : ""),
-                     ((mons[i].mflags2 & M2_HOSTILE)    ? "<span class=\"flghostile\">Hostile</span> " : ""),
-                     ((mons[i].mflags2 & M2_PEACEFUL)   ? "<span class=\"flgpeaceful\">Peaceful</span> " : ""),
-                     ((mons[i].mflags2 & M2_DOMESTIC)   ? "<span class=\"flgdomestic\">Domestic</span> " : ""),
-                     ((mons[i].mflags2 & M2_WANDER)     ? "<span class=\"flgwander\">Wander</span> " : ""),
+                     ((mflags & M2_MALE)       ? "<span class=\"flgmale\">Male</span> " : ""),
+                     ((mflags & M2_FEMALE)     ? "<span class=\"flgfemale\">Female</span> " : ""),
+                     ((mflags & M2_NEUTER)     ? "<span class=\"flgneuter\">Neuter</span> " : ""),
+                     ((mflags & M2_PNAME)      ? "<span class=\"flgpname\">ProperName</span> " : ""),
+                     ((mflags & M2_HOSTILE)    ? "<span class=\"flghostile\">Hostile</span> " : ""),
+                     ((mflags & M2_PEACEFUL)   ? "<span class=\"flgpeaceful\">Peaceful</span> " : ""),
+                     ((mflags & M2_DOMESTIC)   ? "<span class=\"flgdomestic\">Domestic</span> " : ""),
+                     ((mflags & M2_WANDER)     ? "<span class=\"flgwander\">Wander</span> " : ""),
                      /* M2 most significant byte */
-                     ((mons[i].mflags2 & M2_STALK)      ? "<span class=\"flgstalk\">Stalk</span> " : ""),
-                     ((mons[i].mflags2 & M2_NASTY)      ? "<span class=\"flgnasty\">M2_NASTY</span> " : ""),
-                     ((mons[i].mflags2 & M2_STRONG)     ? "<span class=\"flgstrong\">Strong</span> " : ""),
-                     ((mons[i].mflags2 & M2_ROCKTHROW)  ? "<span class=\"flgrockthrow\">Boulders</span> " : ""),
-                     ((mons[i].mflags2 & M2_GREEDY)     ? "<span class=\"flggreedy\">Greedy</span> " : ""),
-                     ((mons[i].mflags2 & M2_JEWELS)     ? "<span class=\"flgjewels\">Jewels</span> " : ""),
-                     ((mons[i].mflags2 & M2_COLLECT)    ? "<span class=\"flgcollect\">Collects</span> " : ""),
-                     ((mons[i].mflags2 & M2_MAGIC)      ? "<span class=\"flgmagic\">MagicItems</span> " : ""),
+                     ((mflags & M2_STALK)      ? "<span class=\"flgstalk\">Stalk</span> " : ""),
+                     ((mflags & M2_NASTY)      ? "<span class=\"flgnasty\">M2_NASTY</span> " : ""),
+                     ((mflags & M2_STRONG)     ? "<span class=\"flgstrong\">Strong</span> " : ""),
+                     ((mflags & M2_ROCKTHROW)  ? "<span class=\"flgrockthrow\">Boulders</span> " : ""),
+                     ((mflags & M2_GREEDY)     ? "<span class=\"flggreedy\">Greedy</span> " : ""),
+                     ((mflags & M2_JEWELS)     ? "<span class=\"flgjewels\">Jewels</span> " : ""),
+                     ((mflags & M2_COLLECT)    ? "<span class=\"flgcollect\">Collects</span> " : ""),
+                     ((mflags & M2_MAGIC)      ? "<span class=\"flgmagic\">MagicItems</span> " : ""));
+}
+
+static const char *
+spoilmonflagthree(unsigned long mflags)
+{
+    return msgprintf("%s%s%s%s%s%s%s%s" "%s%s%s%s%s%s",
                      /* M3 least significant byte */
-                     (((mons[i].mflags3 & M3_WANTSAMUL) && !((mons[i].mflags1 & M3_COVETOUS) == M3_WANTSALL)) ?
+                     (((mflags & M3_WANTSAMUL) && !((mflags & M3_COVETOUS) == M3_WANTSALL)) ?
                                                           "<span class=\"flgwantsamul\">Amulet</span> " : ""),
-                     (((mons[i].mflags3 & M3_WANTSBELL) && !((mons[i].mflags1 & M3_COVETOUS) == M3_WANTSALL)) ?
+                     (((mflags & M3_WANTSBELL) && !((mflags & M3_COVETOUS) == M3_WANTSALL)) ?
                                                           "<span class=\"flgwantsbell\">Bell</span> " : ""),
-                     (((mons[i].mflags3 & M3_WANTSBOOK) && !((mons[i].mflags1 & M3_COVETOUS) == M3_WANTSALL)) ?
+                     (((mflags & M3_WANTSBOOK) && !((mflags & M3_COVETOUS) == M3_WANTSALL)) ?
                                                           "<span class=\"flgwantsbook\">Book</span> " : ""),
-                     (((mons[i].mflags3 & M3_WANTSCAND) && !((mons[i].mflags1 & M3_COVETOUS) == M3_WANTSALL)) ?
+                     (((mflags & M3_WANTSCAND) && !((mflags & M3_COVETOUS) == M3_WANTSALL)) ?
                                                           "<span class=\"flgwantscand\">Candellabrum</span> " : ""),
-                     (((mons[i].mflags3 & M3_WANTSARTI) && !((mons[i].mflags1 & M3_COVETOUS) == M3_WANTSALL)) ?
+                     (((mflags & M3_WANTSARTI) && !((mflags & M3_COVETOUS) == M3_WANTSALL)) ?
                                                           "<span class=\"flgwantsarti\">Artifact</span> " : ""),
-                     (((mons[i].mflags3 & M3_COVETOUS) == M3_WANTSALL) ?
+                     (((mflags & M3_COVETOUS) == M3_WANTSALL) ?
                                                           "<span class=\"flgcovetous\">Covetous</span> " : ""),
                      /* There's an open bit here */
-                     ((mons[i].mflags3 & M3_WAITFORU)   ? "<span class=\"flgwaitforu\">WaitForYou</span> " : ""),
-                     ((mons[i].mflags3 & M3_CLOSE)      ? "<span class=\"flgclose\">Close</span> " : ""),
+                     ((mflags & M3_WAITFORU)   ? "<span class=\"flgwaitforu\">WaitForYou</span> " : ""),
+                     ((mflags & M3_CLOSE)      ? "<span class=\"flgclose\">Close</span> " : ""),
                      /* M3 second byte */
-                     ((mons[i].mflags3 & M3_INFRAVISION)  ? "<span class=\"flginfravision\">InfraVision</span> " : ""),
-                     ((mons[i].mflags3 & M3_INFRAVISIBLE) ? "<span class=\"flginfravisible\">InfraVisible</span> " : ""),
-                     ((mons[i].mflags3 & M3_SCENT)        ? "<span class=\"flgscent\">Scent</span> " : ""),
-                     ((mons[i].mflags3 & M3_DISPLACES)    ? "<span class=\"flgdisplaces\">Displaces</span> " : ""),
-                     ((mons[i].mflags3 & M3_BLINKAWAY)    ? "<span class=\"flgblinkaway\">BlinkAway</span> " : ""),
-                     ((mons[i].mflags3 & M3_VANDMGRDUC)   ? "<span class=\"flgvandmgrduc\">VanDmgReduce</span> " : "")
+                     ((mflags & M3_INFRAVISION)  ? "<span class=\"flginfravision\">InfraVision</span> " : ""),
+                     ((mflags & M3_INFRAVISIBLE) ? "<span class=\"flginfravisible\">InfraVisible</span> " : ""),
+                     ((mflags & M3_SCENT)        ? "<span class=\"flgscent\">Scent</span> " : ""),
+                     ((mflags & M3_DISPLACES)    ? "<span class=\"flgdisplaces\">Displaces</span> " : ""),
+                     ((mflags & M3_BLINKAWAY)    ? "<span class=\"flgblinkaway\">BlinkAway</span> " : ""),
+                     ((mflags & M3_VANDMGRDUC)   ? "<span class=\"flgvandmgrduc\">VanDmgReduce</span> " : "")
         );
+}
+
+static const char *
+spoilmonflags(int i)
+{
+    return msgprintf("%s%s%s",
+                     spoilmonflagone((unsigned long) mons[i].mflags1),
+                     spoilmonflagtwo((unsigned long) mons[i].mflags2, FALSE),
+                     spoilmonflagthree((unsigned long) mons[i].mflags3));
 }
 
 static void
@@ -586,6 +703,170 @@ spoilartotherinfo(struct artifact *art)
                       "<span class=\"artother artspeak\">speaks</span> " : ""));
 }
 
+const char *
+spoilgenders(short allow)
+{
+    short g = (allow & ROLE_GENDMASK);
+    return msgprintf("<span class=\"genders\">%s %s %s</span>",
+     ((g & ROLE_MALE)   ?
+     "<span class=\"flgmale\"><abbr title=\"male\">Mal</abbr></span>"   : ""),
+     ((g & ROLE_FEMALE) ?
+     "<span class=\"flgfemale\"><abbr title=\"female\">Fem<abbr></span>": ""),
+     ((g & ROLE_NEUTER) ?
+     "<span class=\"flgneuter\"><abbr title=\"neuter\">Neut</abbr></span>"
+                                                                        : ""));
+}
+
+const char *
+spoilaligns(short allow) {
+    short a = (allow & ROLE_ALIGNMASK);
+    return msgprintf("<span class=\"aligns\">%s %s %s</span>",
+                     ((a & ROLE_LAWFUL)  ? spoilaligntyp(A_LAWFUL)  : ""),
+                     ((a & ROLE_NEUTRAL) ? spoilaligntyp(A_NEUTRAL) : ""),
+                     ((a & ROLE_CHAOTIC) ? spoilaligntyp(A_CHAOTIC) : ""));
+}
+
+const char *
+spoilroleraces(short allow) {
+    const char *thelist = "";
+    int i, j = 0;
+    for (i = 0; races[i].filecode; i++) {
+        if ((races[i].selfmask) & allow) {
+            thelist = msgprintf("%s%s<span class=\"race%s\">"
+                                "<abbr title=\"%s\">%s</abbr></span>",
+                                thelist, ((j++ > 0) ? ", " : ""),
+                                races[i].filecode, races[i].noun,
+                                races[i].filecode);
+        }
+    }
+    return msgprintf("<span class=\"races\">%s</span>", thelist);
+}
+
+const char *
+spoilraceroles (short selfmask) {
+    const char *thelist = "";
+    int i, j = 0;
+    for (i = 0; roles[i].filecode; i++) {
+        short thisrole = (roles[i].allow & ROLE_RACEMASK);
+        if (thisrole & selfmask) {
+            thelist = msgprintf("%s%s<span class=\"role%s\">"
+                                "<abbr title=\"%s\">%s</abbr></span>",
+                                thelist, ((j++ > 0) ? ", " : ""),
+                                roles[i].name.m, roles[i].name.m,
+                                roles[i].filecode);
+        }
+    }
+    return msgprintf("<span class=\"roles\">%s</span>", thelist);
+}
+
+const char *
+attrlabel (int i) {
+    if      (i == A_STR) { return "Str"; }
+    else if (i == A_INT) { return "Int"; }
+    else if (i == A_WIS) { return "Wis"; }
+    else if (i == A_DEX) { return "Dex"; }
+    else if (i == A_CON) { return "Con"; }
+    else if (i == A_CHA) { return "Cha"; }
+    else return msgprintf("%d??", i);
+}
+
+const char *
+spoilattributes(const char *labelone, const xchar *attone,
+                const char *labeltwo, const xchar *attrtwo,
+                const char *labelthr, const xchar *attrthr) {
+    int i;
+    const char *headers = "<th></th>";
+    const char *rowone  = msgprintf("<th>%s:</th>", labelone);
+    const char *rowtwo  = msgprintf("<th>%s:</th>", labeltwo);
+    const char *rowthr  = attrthr ? msgprintf("<th>%s:</th>", labelthr) : "";
+    for (i = 0; i < A_MAX; i++) {
+        headers = msgprintf("%s<th>%s</th>", headers, attrlabel(i));
+        rowone  = msgprintf("%s<td class=\"numeric attr%s\">%d</td>",
+                            rowone, attrlabel(i), attone[i]);
+        rowtwo  = msgprintf("%s<td class=\"numeric attr%s\">%d</td>",
+                            rowtwo, attrlabel(i), attrtwo[i]);
+        if (attrthr)
+            rowthr = msgprintf("%s<td class=\"numeric attr%s\">%s%d</td>",
+                               rowthr, attrlabel(i),
+                               ((attrthr[i] > 0) ? "+" : ""),  attrthr[i] - 1);
+    }
+    return msgprintf("<table class=\"attributes\"><thead>\n"
+                     "  <tr>%s</tr>\n"
+                     "</thead><tbody>\n"
+                     "  <tr class=\"attrow%s\">%s</tr>\n"
+                     "  <tr class=\"attrow%s\">%s</tr>\n"
+                     "%s"
+                     "</tbody></table>",
+                     headers, labelone, rowone, labeltwo, rowtwo,
+                     (attrthr ? msgprintf("  <tr class=\"attrow%s\">%s</tr>\n",
+                                          labelthr, rowthr) : ""));
+}
+
+const char *
+spoiladvancerow(const char *label, const struct RoleAdvance *adv) {
+    return msgprintf("<tr class=\"adv%s\"><th class=\"label\">%s:</th>"
+                     "<td class=\"numeric advin\">"
+                     "    <span class=\"advfix advinfix\">%d</span>"
+                     "    <span class=\"advrnd advinrnd\">+d%d</span></td>"
+                     "<td class=\"numeric advlo\">"
+                     "    <span class=\"advfix advlofix\">%d</span>"
+                     "    <span class=\"advrnd advlornd\">+d%d</span></td>"
+                     "<td class=\"numeric advhi\">"
+                     "    <span class=\"advfix advhifix\">%d</span>"
+                     "    <span class=\"advrnd advhirnd\">+d%d</span></td>"
+                     "</tr>", label, label, adv->infix, adv->inrnd,
+                     adv->lofix, adv->lornd, adv->hifix, adv->hirnd);
+}
+const char *
+spoiladvance(const char *labelone, const struct RoleAdvance *advone,
+             const char *labeltwo, const struct RoleAdvance *advtwo,
+             int cutoff)
+{
+    return msgprintf("<table><thead>"
+                     "  <tr><th></th>"
+                     "      <th class=\"label\">init</th>"
+                     "      <th class=\"label\">early gain</th>"
+                     "      <th class=\"label\">%s</th>"
+                     "  </tr>"
+                     "</thead><tbody>"
+                     "   %s"
+                     "   %s"
+                     "</tbody></table>\n",
+                     (cutoff ? msgprintf("gain &gt;XL%d", cutoff) :
+                      "late gain"),
+                     spoiladvancerow(labelone, advone),
+                     spoiladvancerow(labeltwo, advtwo));
+}
+
+const char *
+spoilspellpenalty(const char *class, const char *label, int p)
+{
+    if (p == 0) { return ""; }
+    const char *sign = (p < 0) ? "<span class=\"penaltyminus\">-</span>" :
+                                 "<span class=\"penaltyplus\">+</span>";
+    const char *signclass = (p < 0) ? " bonus" : (p > 0) ? " malus" : "nil";
+    return msgprintf("<span class=\"%s%s\">%s: "
+                     "%s<span class=\"number\">%d</span></span>",
+                     class, signclass, label, sign, abs(p));
+}
+
+const char *
+spoilrolespellcasting(int i)
+{
+    return msgprintf("<span class=\"rolespellcasting\">%s %s %s %s</span>",
+                     spoilspellpenalty("base", "Base", roles[i].spelbase),
+                     spoilspellpenalty("armr", "Armor",  roles[i].spelarmr),
+                     spoilspellpenalty("shld", "Shield", roles[i].spelshld),
+                     spoilspellpenalty("heal", "Heal", roles[i].spelheal));
+}
+
+const char *
+spoilquestart(int i)
+{
+    const struct artifact *art = &artilist[roles[i].questarti];
+    return art->name;
+}
+
 void
 makehtmlspoilers(void)
 {
@@ -615,6 +896,7 @@ makehtmlspoilers(void)
                 "<th class=\"damage ldam\">ldam</th>"
                 "<th class=\"numeric weight\">wt</th>"
                 "<th class=\"numeric price\">zm</th>"
+                "<th class=\"notes wpnnotes\">notes</th>"
                 "</tr>\n</thead><tbody>\n");
         for (i = 0; !i || objects[i].oc_class != ILLOBJ_CLASS; i++) {
             if (objects[i].oc_class != WEAPON_CLASS &&
@@ -629,11 +911,15 @@ makehtmlspoilers(void)
                     "<td class=\"damage ldam\">%s</td>"
                     "<td class=\"numeric weight\">%d</td>"
                     "<td class=\"numeric price\">%d</td>"
+                    "<td class=\"notes wpnnotes\">%s</td>"
                     "</tr>\n",
                     spoiloname(i), spoilweapskill(i),
                     material[objects[i].oc_material], spoiltohit(i, NULL),
                     spoildamage(i, SDAM, NULL), spoildamage(i, LDAM, NULL),
-                    objects[i].oc_weight, objects[i].oc_cost);
+                    objects[i].oc_weight, objects[i].oc_cost,
+                    (objects[i].oc_bimanual ?
+                     "<span class=\"bimanual\" title=\"two-handed\">2H</span>"
+                     : ""));
             /* Now check for artifacts with this base item */
             for (art = artilist + 1; art->otyp; art++) {
                 if (art->otyp == i) {
@@ -648,11 +934,17 @@ makehtmlspoilers(void)
                             "<td class=\"damage ldam\">%s</td>"
                             "<td class=\"numeric weight\">%d</td>"
                             "<td class=\"numeric price\">%d</td>"
+                            "<td class=\"notes wpnnotes artinotes\">%s"
+                            " <span class=\"versus\">%s</span></td>"
                             "</tr>", art->name, spoilweapskill(i),
                             material[objects[i].oc_material],
                             spoiltohit(i, art), spoildamage(i, SDAM, art),
                             spoildamage(i, LDAM, art), objects[i].oc_weight,
-                            objects[i].oc_cost);
+                            objects[i].oc_cost,
+                            (objects[i].oc_bimanual ?
+                             "<span class=\"bimanual\" title=\"two-handed\">"
+                             "2H</span>" : ""),
+                            spoilversus(art));
                 }
             }
         }
@@ -679,6 +971,7 @@ makehtmlspoilers(void)
                 "<th class=\"numeric mc\">MC</th>"
                 "<th class=\"numeric ac\">def</th>"
                 "<th class=\"material\">mat</th>"
+                "<th class=\"size\">fits</th>"
                 "<th class=\"numeric weight\">wt</th>"
                 "<th class=\"numeric price\">zm</th>"
                 "</tr>\n</thead><tbody>\n");
@@ -691,6 +984,7 @@ makehtmlspoilers(void)
                     "<td class=\"numeric mc\">%s</td>"
                     "<td class=\"numeric ac\">%d</td>"
                     "<td class=\"material\">%s</td>"
+                    "<td class=\"armorsize\">%s</td>"
                     "<td class=\"numeric weight\">%d</td>"
                     "<td class=\"numeric price\">%d</td>"
                     "</tr>\n",
@@ -698,6 +992,7 @@ makehtmlspoilers(void)
                     (objects[i].a_can ?
                      msgprintf("MC%d", objects[i].a_can) : ""),
                     objects[i].a_ac, material[objects[i].oc_material],
+                    spoilarmorsize(&objects[i]),
                     objects[i].oc_weight, objects[i].oc_cost);
         }
 
@@ -822,16 +1117,17 @@ makehtmlspoilers(void)
         fprintf(outfile, "\n<table id=\"monsters\"><thead>\n  "
                 "<tr><th class=\"mlet\"></th>"
                 "<th class=\"monster\">monster</th>"
-                "<th class=\"numeric level\">lvl</th>"
+                "<th class=\"numeric level\">lv</th>"
                 "<th class=\"numeric monstr\">mon<br />str</th>"
                 "<th class=\"numeric speed\">mov</th>"
                 "<th class=\"numeric ac\">def</th>"
                 "<th class=\"numeric monmr\">mr</th>"
                 "<th class=\"align\">aln</th>"
-                "<th class=\"attacks\">attacks</th>"
+                "<th><span class=\"skills\">skills</span>"
+                "    <span class=\"attacks\">attacks</span></th>"
                 "<th class=\"resistances\">resists</th>"
                 "<th class=\"resgranted\">grants</th>"
-                "<th class=\"numeric nutrition\">nutr</th>"
+                "<th class=\"numeric nutrition\">nut</th>"
                 "<th class=\"numeric weight\">wt</th>"
                 "<th class=\"size\">sz</th>"
                 "<th class=\"mrace\">race</th>"
@@ -859,7 +1155,8 @@ makehtmlspoilers(void)
                     "<td class=\"numeric ac\">%d</td>"
                     "<td class=\"numeric monmr\">%d</td>"
                     "<td class=\"align\">%s</td>"
-                    "<td class=\"attacks\">%s</td>"
+                    "<td><span class=\"skills\">%s</span>"
+                    "    <span class=\"attacks\">%s</span></td>"
                     "<td class=\"resistances\">%s</td>"
                     "<td class=\"resgranted\">%s</td>"
                     "<td class=\"numeric nutrition\">%d</td>"
@@ -868,11 +1165,12 @@ makehtmlspoilers(void)
                     "<td class=\"mrace\">%s</td>"
                     "<td class=\"flags\">%s</td>"
                     "</tr>\n", i, mlet, mons[i].mname, mons[i].mlevel,
-                    monstr[i], mons[i].mmove, (10 - mons[i].ac),
-                    mons[i].mr, spoilmaligntyp(i), spoilattacks(i),
+                    MONSTR(i), mons[i].mmove, (10 - mons[i].ac),
+                    mons[i].mr, spoilmaligntyp(i),
+                    spoilmonskills(i), spoilattacks(i),
                     spoilresistances(mons[i].mresists, FALSE, i),
                     spoilresistances(mons[i].mconveys, TRUE, i),
-                    mons[i].cnutrit, mons[i].cwt, spoilmonsize(i),
+                    mons[i].cnutrit, mons[i].cwt, spoilmonsize(mons[i].msize),
                     spoilmrace(i), spoilmonflags(i));
         }
         fprintf(outfile, "\n</tbody></table>\n</html>\n");
@@ -881,7 +1179,99 @@ makehtmlspoilers(void)
         fclose(outfile);     
     }
     /* ####################### Role / Race ####################### */
-    // TODO
+    fd = open_datafile("players.html",
+                       O_CREAT | O_WRONLY, SPOILPREFIX);
+    if (fd < 0) {
+        pline(msgc_debug, "Failed to write players spoiler.  Is it writable?");
+        return;
+    }
+    if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
+        outfile = fdopen(fd, "w");
+        fprintf(outfile, htmlheader("Playable Characters"));
+
+        fprintf(outfile, "<ul>"
+                "   <li><a href=\"#race\">Race</a></li>"
+                "   <li><a href=\"#role\">Role</a> (Profession/Class)</li>"
+                "</ul><hr />\n");
+
+        fprintf(outfile, "<h1><a name=\"race\">Playable Races</h1>\n");
+        fprintf(outfile, "<table class=\"races\"><thead>\n"
+                "  <tr><th rowspan=\"2\" class=\"filecode\">TLA</th>\n"
+                "      <th class=\"player race\">Race</th>"
+                "      <th class=\"size\">Size</th>"
+                "      <th class=\"numeric speed\">speed</th>\n"
+                "      <th class=\"gender\">Gender</th>\n"
+                "      <th rowspan=\"2\" class=\"attr\">Attributes</th>\n"
+                "      <th rowspan=\"2\" class=\"advance\">Advance</th></tr>\n"
+                "  <tr><th class=\"player roles\" colspan=\"3\">Roles</th>\n"
+                "      <th class=\"align\">Aligns</th></tr>\n"
+                "</thead><tbody>\n");
+
+        for (i = 0; races[i].filecode; i++) {
+            fprintf(outfile, "<tr class=\"newsection\">"
+                    "    <th rowspan=\"2\" class=\"filecode\">%s</th>"
+                    "    <td class=\"player race\">%s</td>"
+                    "    <td class=\"size\">%s</td>"
+                    "    <td class=\"numeric speed\">%d</td>\n"
+                    "    <td class=\"gender\">%s</td>\n"
+                    "    <td class=\"attr\" rowspan=\"2\">%s</td>\n"
+                    "    <td class=\"advance\" rowspan=\"2\">%s</td></tr>\n"
+                    "<tr><td class=\"player roles\" colspan=\"3\">%s</td>\n"
+                    "    <td class=\"align\">%s</td></tr>\n",
+                    races[i].filecode, races[i].noun,
+                    spoilmonsize(mons[(races[i].malenum ? races[i].malenum :
+                                       races[i].femalenum)].msize),
+                    races[i].basespeed, spoilgenders(races[i].allow),
+                    spoilattributes("min", races[i].attrmin,
+                                    "max", races[i].attrmax, "", NULL),
+                    spoiladvance("HP", &races[i].hpadv, "Pw", &races[i].enadv, 0),
+                    spoilraceroles(races[i].selfmask), spoilaligns(races[i].allow));
+        }
+        fprintf(outfile, "</tbody></table>\n");
+
+        fprintf(outfile, "<h1><a name=\"role\">Player Roles</h1>\n");
+        fprintf(outfile, "<table class=\"roles\"><thead>\n"
+                "  <tr><th rowspan=\"3\" class=\"filecode\">TLA</th>\n"
+                "      <th class=\"player role\">Role</th>\n"
+                "      <th class=\"gender\">Gender</th>\n"
+                "      <th rowspan=\"3\" class=\"attr\">Attributes</th>\n"
+                "      <th rowspan=\"3\" class=\"advance\">Advance</th>\n"
+                "  </tr>\n"
+                "  <tr><th class=\"race\">Races</th>\n"
+                "      <th class=\"align\">Aligns</th></tr>\n"
+                "  <tr><th class=\"spellcasting\">Spell Penalties</th>\n"
+                "      <th class=\"questart\">Artifact</th></tr>"
+                "</thead><tbody>");
+        for (i = 0; roles[i].filecode; i++) {
+            fprintf(outfile, "  <tr class=\"newsection\">"
+                    "      <th rowspan=\"3\" class=\"filecode\">%s</th>\n"
+                    "      <td class=\"player role\">%s%s%s</td>\n"
+                    "      <td class=\"gender\">%s</td>\n"
+                    "      <td rowspan=\"3\" class=\"attr\">%s</td>\n"
+                    "      <td rowspan=\"3\" class=\"advance\">%s</td>\n"
+                    "  </tr>\n"
+                    "  <tr><td class=\"races\">%s</td>\n"
+                    "      <td class=\"align\">%s</td></tr>\n"
+                    "  <tr><td class=\"spellcasting\">%s</td>\n"
+                    "      <td class=\"questart\">%s</td></tr>",
+                    roles[i].filecode,
+                    roles[i].name.m, (roles[i].name.f ? "/" : ""),
+                                    (roles[i].name.f ? roles[i].name.f : ""),
+                    spoilgenders(roles[i].allow),
+                    spoilattributes("base", roles[i].attrbase,
+                                    "dist", roles[i].attrdist,
+                                    "max",  roles[i].attrmaxm),
+                    spoiladvance("HP", &roles[i].hpadv, "Pw", &roles[i].enadv,
+                                 roles[i].xlev),
+                    spoilroleraces(roles[i].allow),
+                    spoilaligns(roles[i].allow),
+                    spoilrolespellcasting(i), spoilquestart(i));
+        }
+        fprintf(outfile, "</tbody></table>\n");
+
+        change_fd_lock(fd, FALSE, LT_NONE, 0);
+        fclose(outfile);
+    }
 
     /* ######################### Index ########################### */
     fd = open_datafile("index.html",
@@ -910,6 +1300,10 @@ makehtmlspoilers(void)
                 "   </ul></li>"
                 "   <li><a href=\"artifact-spoiler.html\">Artifacts</a></li>"
                 "   <li><a href=\"monster-spoiler.html\">Monsters</a></li>"
+                "   <li><a href=\"players.html\">Players</a><ul>"
+                "          <li><a href=\"players.html#race\">Races</a></li>"
+                "          <li><a href=\"players.html#role\">Roles</a></li>"
+                "       </ul></li>"
                 "</ul>\n");
 
         fprintf(outfile, "\n</html>\n");
@@ -958,6 +1352,7 @@ makepinobotyaml(void)
             fprintf(f, " - name: \"%s\"\n", pm->mname);
             fprintf(f, "   symbol: \"%c\"\n", def_monsyms[(int)pm->mlet]);
             fprintf(f, "   base-level: %d\n", pm->mlevel);
+            fprintf(f, "   difficulty: %d\n", MONSTR(i));
             fprintf(f, "   speed: %d\n", pm->mmove);
             fprintf(f, "   ac: %d\n", pm->ac);
             fprintf(f, "   mr: %d\n", pm->mr);
@@ -979,7 +1374,7 @@ makepinobotyaml(void)
                     (pm->geno & G_NOGEN) ? "Yes" : "No");
             fprintf(f, "   appears-in-small-groups: %s\n",
                     (pm->geno & G_SGROUP) ? "Yes" : "No");
-            fprintf(f, "   appears-in-largeGroups: %s\n",
+            fprintf(f, "   appears-in-large-groups: %s\n",
                     (pm->geno & G_LGROUP) ? "Yes" : "No");
             fprintf(f, "   genocidable: %s\n",
                     (pm->geno & G_GENO) ? "Yes" : "No");
@@ -1066,6 +1461,7 @@ makepinobotyaml(void)
                 case AD_PITS: fprintf(f, ", %s", "AdPits"); break;
                 case AD_ICEB: fprintf(f, ", %s", "AdIceBlock"); break;
                 case AD_WEBS: fprintf(f, ", %s", "AdWebs"); break;
+                case AD_DISP: fprintf(f, ", %s", "AdDisplace"); break;
                 case AD_CLRC: fprintf(f, ", %s", "AdClerical"); break;
                 case AD_SPEL: fprintf(f, ", %s", "AdSpell"); break;
                 case AD_RBRE: fprintf(f, ", %s", "AdRandomBreath"); break;

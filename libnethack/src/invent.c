@@ -640,6 +640,77 @@ sobj_at(int otyp, struct level *lev, int x, int y)
     return NULL;
 }
 
+boolean
+is_racial_equipment(struct monst *mon, struct obj *obj)
+{
+    const struct permonst *pm = ((mon == &youmonst) ? URACEDATA : mon->data);
+    if (is_elf(pm) &&
+        (obj->otyp == ELVEN_LEATHER_HELM || obj->otyp == ELVEN_MITHRIL_COAT ||
+         obj->otyp == ELVEN_CLOAK || obj->otyp == ELVEN_SHIELD ||
+         obj->otyp == ELVEN_BOOTS || obj->otyp == ELVEN_SPEAR ||
+         obj->otyp == ELVEN_DAGGER || obj->otyp == ELVEN_SHORT_SWORD ||
+         obj->otyp == ELVEN_BROADSWORD || obj->otyp == ELVEN_BOW))
+        return TRUE;
+    if (is_orc(pm) &&
+        (obj->otyp == ORCISH_HELM || obj->otyp == ORCISH_RING_MAIL ||
+         obj->otyp == ORCISH_CHAIN_MAIL || obj->otyp == ORCISH_CLOAK ||
+         obj->otyp == URUK_HAI_SHIELD || obj->otyp == ORCISH_SHIELD ||
+         obj->otyp == ORCISH_SPEAR || obj->otyp == ORCISH_DAGGER ||
+         obj->otyp == ORCISH_SHORT_SWORD || obj->otyp == ORCISH_BOW))
+        return TRUE;
+    if (is_dwarf(pm) &&
+        (obj->otyp == DWARVISH_IRON_HELM || obj->otyp == DWARVISH_CLOAK ||
+         obj->otyp == DWARVISH_MITHRIL_COAT || obj->otyp == DWARVISH_SPEAR ||
+         obj->otyp == DWARVISH_ROUNDSHIELD || obj->otyp == DWARVISH_MATTOCK ||
+         obj->otyp == DWARVISH_SHORT_SWORD))
+        return TRUE;
+    if (is_gnome(pm) &&
+        (obj->otyp == AKLYS || obj->otyp == CROSSBOW))
+    if (is_human(pm) &&
+        (obj->otyp == FEDORA))
+        return TRUE;
+    /* Should slings count as racial for anybody? */
+    return FALSE;
+}
+
+int
+carried_alignment(void)
+{
+    int articount = 0;
+    long gemval = 0;
+    long coinval = 0;
+    int bonus = 0;
+    struct obj *otmp;
+    for (otmp = invent; otmp; otmp = otmp->nobj) {
+        if (otmp->oartifact || objects[otmp->otyp].oc_unique)
+            articount++;
+        else if (otmp->oclass == GEM_CLASS)
+            gemval += objects[otmp->otyp].oc_cost / 100;
+        else if (otmp->oclass == COIN_CLASS)
+            coinval += otmp->quan;
+        else if (((otmp->owornmask & W_WORN) ||
+                  (uwep && uwep == otmp)) &&
+                 is_racial_equipment(&youmonst, otmp))
+            bonus++;
+        else if (Role_if(PM_SAMURAI) &&
+                 (otmp->otyp == KATANA || otmp->otyp == TSURUGI ||
+                  otmp->otyp == YUMI))
+            bonus++;
+    }
+    if (Role_if(PM_ARCHEOLOGIST) && articount > 0)
+        bonus += articount * 5 / 4;
+    if (Race_if(PM_GNOME) && gemval > 20)
+        bonus += ilog2((int) (gemval / 20)) / 500;
+    if (Race_if(PM_GIANT))
+        bonus += ilog2((int) (coinval / 1000)) / 500;
+    /*
+    pline(msgc_debug, "ca: %da, %dg, %dc, %db",
+          articount, (int) gemval, (int) coinval, bonus);
+    */
+    if (bonus > 10)
+        bonus = 10;
+    return bonus;
+}
 
 struct obj *
 carrying(int type)
@@ -897,7 +968,7 @@ object_selection_checks(struct obj *otmp, const char *word)
            (otmp->dknown && objects[OIL_LAMP].oc_name_known)))) ||
         (!strcmp(word, "throw") &&
          !(ammo_and_launcher(otmp, uwep) || is_missile(otmp)) &&
-         !(throws_rocks(youmonst.data) && otyp == BOULDER)) ||
+         !(throws_rocks(URACEDATA) && otyp == BOULDER)) ||
         (!strcmp(word, "charge") && !is_chargeable(otmp)))
         return NONSENSIBLE_USE;
 
@@ -1769,6 +1840,8 @@ dfeature_at(int x, int y)
             dfeature = "open drawbridge portcullis", cmap = -1;
     } else if (IS_FOUNTAIN(ltyp))
         cmap = S_fountain;      /* "fountain" */
+    else if (IS_BENCH(ltyp))
+        cmap = S_bench;
     else if (IS_THRONE(ltyp))
         cmap = S_throne;        /* "opulent throne" */
     else if (IS_MAGIC_CHEST(ltyp))

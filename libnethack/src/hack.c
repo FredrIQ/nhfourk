@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -179,7 +179,7 @@ resolve_uim(enum u_interaction_mode uim, boolean weird_attack, xchar x, xchar y)
         boolean lava = l->mem_bg == S_lava;
         boolean pool = l->mem_bg == S_pool;
 
-        if (!Levitation && !Flying && !is_clinger(youmonst.data) &&
+        if (!Levitation && !Flying && !is_clinger(URACEDATA) &&
             (lava || (pool && !HSwimming)) &&
             !is_pool(level, u.ux, u.uy) && !is_lava(level, u.ux, u.uy)) {
 
@@ -257,7 +257,7 @@ revive_nasty(int x, int y, const char *msg)
             /* move any living monster already at that location */
             if ((mtmp = m_at(level, x, y)) &&
                 enexto(&cc, level, x, y, mtmp->data))
-                rloc_to(mtmp, cc.x, cc.y);
+                rloc_to(mtmp, cc.x, cc.y, level);
             if (msg)
                 pline_once(msgc_levelwarning, "%s", msg);
             revived = revive_corpse(otmp);
@@ -269,7 +269,7 @@ revive_nasty(int x, int y, const char *msg)
         mtmp = m_at(level, x, y);
         if (mtmp && !goodpos(level, x, y, mtmp, 0) &&
             enexto(&cc, level, x, y, mtmp->data)) {
-            rloc_to(mtmp, cc.x, cc.y);
+            rloc_to(mtmp, cc.x, cc.y, level);
         }
         /* else impossible? */
     }
@@ -319,7 +319,7 @@ moverock(schar dx, schar dy)
             /* Give them a chance to climb over it? */
             return FALSE;
         }
-        if (verysmall(youmonst.data) && !u.usteed) {
+        if (verysmall(URACEDATA) && !u.usteed) {
             if (Blind)
                 feel_location(sx, sy);
             pline(msgc_yafm, "You're too small to push that %s.", xname(otmp));
@@ -483,7 +483,7 @@ moverock(schar dx, schar dy)
                altogether */
             if (!u.usteed) {
                 pline_once(msgc_actionboring, "With %s effort you move %s.",
-                           throws_rocks(youmonst.data) ? "little" : "great",
+                           throws_rocks(URACEDATA) ? "little" : "great",
                            the(xname(otmp)));
                 exercise(A_STR, TRUE);
             } else
@@ -523,7 +523,7 @@ moverock(schar dx, schar dy)
             if (Blind)
                 feel_location(sx, sy);
             /* cannot_push: */
-            if (throws_rocks(youmonst.data)) {
+            if (throws_rocks(URACEDATA)) {
                 if (u.usteed && P_SKILL(P_RIDING) < P_BASIC) {
                     pline(msgc_yafm,
                           "You aren't skilled enough to %s %s from %s.",
@@ -544,7 +544,7 @@ moverock(schar dx, schar dy)
                 (((!invent || inv_weight() <= -850) &&
                   (!dx || !dy || (IS_ROCK(level->locations[u.ux][sy].typ)
                                   && IS_ROCK(level->locations[sx][u.uy].typ))))
-                 || verysmall(youmonst.data))) {
+                 || verysmall(URACEDATA))) {
                 pline
                     (msgc_substitute,
                      "However, you can squeeze yourself into a small opening.");
@@ -708,7 +708,7 @@ dosinkfall(void)
             uninvoke_artifact(obj);
     }
 
-    if (is_floater(youmonst.data) || (HLevitation & FROMOUTSIDE)) {
+    if (is_floater(URACEDATA) || (HLevitation & FROMOUTSIDE)) {
         pline(msgc_playerimmune, "You wobble unsteadily for a moment.");
     } else {
         pline(msgc_statusend, "You crash to the floor!");
@@ -821,9 +821,9 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
         if (cache->passwall && may_passwall(level, x, y)) {
             ;   /* do nothing */
         } else if (tmpr->typ == IRONBARS) {
-            if (!(cache->passwall || passes_bars(youmonst.data)))
+            if (!(cache->passwall || passes_bars(URACEDATA)))
                 return FALSE;
-        } else if (tunnels(youmonst.data) && !needspick(youmonst.data)) {
+        } else if (tunnels(URACEDATA) && !needspick(URACEDATA)) {
             /* Eat the rock. */
             if (mode == DO_MOVE && still_chewing(x, y))
                 return FALSE;
@@ -847,11 +847,10 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
             /* ALI - artifact doors */
 	    if (artifact_door(/*level, */x, y)) {
 		if (mode == DO_MOVE) {
-		    if (amorphous(youmonst.data))
+		    if (amorphous(URACEDATA))
 			pline(msgc_yafm, "You try to ooze under the door, "
                               "but the gap is too small.");
-		    else if (tunnels(youmonst.data) &&
-                             !needspick(youmonst.data))
+		    else if (tunnels(URACEDATA) && !needspick(URACEDATA))
 			pline(msgc_badidea,
                               "You hurt yourself on the reinforced door.");
 		    else if (x == u.ux || y == u.uy) {
@@ -872,13 +871,13 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
                 if (mode == DO_MOVE)
                     pline(msgc_actionok, "You ooze %s the door.",
                           can_reach_floor() ? "under" : "around");
-            } else if (tunnels(youmonst.data) && !needspick(youmonst.data)) {
+            } else if (tunnels(URACEDATA) && !needspick(URACEDATA)) {
                 /* Eat the door. */
                 if (mode == DO_MOVE && still_chewing(x, y))
                     return FALSE;
             } else {
                 if (mode == DO_MOVE) {
-                    if (amorphous(youmonst.data))
+                    if (amorphous(URACEDATA))
                         pline(msgc_cancelled,
                               "You try to ooze %s the door, but can't "
                               "squeeze your possessions through.",
@@ -925,7 +924,7 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
                 pline(msgc_cancelled, "You cannot pass that way.");
             return FALSE;
         }
-        if (bigmonst(youmonst.data) && !can_ooze(&youmonst)) {
+        if (bigmonst(URACEDATA) && !can_ooze(&youmonst)) {
             if (mode == DO_MOVE)
                 pline(msgc_cancelled, "Your %s is too large to fit through.",
                       body_part(BODY));
@@ -976,8 +975,8 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
     }
 
     /* Can we be blocked by a boulder? */
-    if (!throws_rocks(youmonst.data) &&
-        !(verysmall(youmonst.data) && !u.usteed) &&
+    if (!throws_rocks(URACEDATA) &&
+        !(verysmall(URACEDATA) && !u.usteed) &&
         !((!invent || inv_weight() <= -850) && !u.usteed)) {
         /* We assume we can move boulders when we're at a distance from them.
            When it comes to actually do the move, resolve_uim() may replace the
@@ -986,7 +985,7 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
            is checking sobj_at (what's actually there), not memory. */
         if (mode == DO_MOVE && sobj_at(BOULDER, level, x, y) &&
             (In_sokoban(&u.uz) || !cache->passwall)) {
-            if (!tunnels(youmonst.data) || needspick(youmonst.data) ||
+            if (!tunnels(URACEDATA) || needspick(URACEDATA) ||
                 In_sokoban(&u.uz) || still_chewing(x, y)) {
                 /* TODO: this codepath seems to be unreachable (in favour
                    of the Oof! codepath) */
@@ -1009,7 +1008,7 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
                 return FALSE;
             if (level->locations[ux][uy].mem_obj == BOULDER + 1 &&
                 !cache->passwall &&
-                !(tunnels(youmonst.data) && !needspick(youmonst.data)))
+                !(tunnels(URACEDATA) && !needspick(URACEDATA)))
                 return FALSE;
         }
 
@@ -1029,9 +1028,9 @@ test_move(int ux, int uy, int dx, int dy, int dz, int mode,
             /* Print a message when moving onto a boulder in a form that lets
                us move past them. */
             pline(msgc_actionok, "You %s the boulder%s%s.",
-                  throws_rocks(youmonst.data) ? "push" :
-                  verysmall(youmonst.data) ? "slip under" : "squeeze past",
-                  throws_rocks(youmonst.data) ? " aside" : "",
+                  throws_rocks(URACEDATA) ? "push" :
+                  verysmall(URACEDATA) ? "slip under" : "squeeze past",
+                  throws_rocks(URACEDATA) ? " aside" : "",
                   cache->instead_of_pushing_boulder ? " instead" : "");
 
             if (In_sokoban(&u.uz))
@@ -1593,13 +1592,13 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
     uia = resolve_uim(uim, !!Engulfed,
                       Engulfed ? u.ux : u.ux + turnstate.intended_dx,
                       Engulfed ? u.uy : u.uy + turnstate.intended_dy);
+    boolean moving = FALSE; /* true if we are performing a move */
 
     switch (uia) {
     case uia_move_nopickup:
-        break;
     case uia_move_pickup:
-        break;
     case uia_displace:
+        moving = TRUE;
         break;
     case uia_attack:
         break;
@@ -1628,7 +1627,7 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
     if (((wtcap = near_capacity()) >= OVERLOADED ||
          (wtcap > SLT_ENCUMBER && (Upolyd ? (u.mh < 5 && u.mh != u.mhmax)
                                    : (u.uhp < 10 && u.uhp != u.uhpmax))))
-        && !Is_airlevel(&u.uz)) {
+        && !Is_airlevel(&u.uz) && (moving || wtcap >= OVERLOADED)) {
         if (wtcap < OVERLOADED) {
             pline(msgc_cancelled1, "You don't have enough stamina to move.");
             exercise(A_CON, FALSE);
@@ -1671,8 +1670,8 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
                 skates = find_skates();
             if ((uarmf && uarmf->otyp == skates)
                 || resists_cold(&youmonst) || Flying ||
-                is_floater(youmonst.data) || is_clinger(youmonst.data)
-                || is_whirly(youmonst.data))
+                is_floater(URACEDATA) || is_clinger(URACEDATA)
+                || is_whirly(URACEDATA))
                 on_ice = FALSE;
             else if (!rn2(Cold_resistance ? 3 : 2)) {
                 HFumbling |= FROMOUTSIDE;
@@ -1683,8 +1682,8 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
         if (!on_ice && (HFumbling & FROMOUTSIDE))
             HFumbling &= ~FROMOUTSIDE;
 
-        /* Ensure the move is to a valid direction. If not stunned or confused,
-           abort invalid moves. Otherwise, re-randomize them.
+        /* Ensure that if we're stunned/confused, the random move was valid.
+           If not, re-randomize.
 
            Note that this is a bugfix from 4.3-beta2, which effectively rolled
            the randomization chance on confusion twice (once here, once in
@@ -1693,9 +1692,16 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
         x = u.ux + turnstate.move.dx;
         y = u.uy + turnstate.move.dy;
         int tries = 0;
-        while ((!isok(x, y) || bad_rock(URACEDATA, x, y)) &&
-               (uia != uia_attack) && (!uwep || !is_pick(uwep))) {
-            if (tries++ > 50 || (!Stunned && !Confusion)) {
+        struct rm *l = NULL;
+        if (isok(x,y))
+            l = &(level->locations[x][y]);
+        while (moving && (Stunned || Confusion) &&
+               (!isok(x, y) || ((l && l->mem_bg >= S_stone &&
+                                 l->mem_bg <= S_trwall &&
+                                 (!tunnels(URACEDATA) ||
+                                 (needspick(URACEDATA) &&
+                                  (!uwep || !is_pick(uwep)))))))) {
+            if (tries++ > 50) {
                 action_completed();
                 if (isok(x, y)) {
                     feel_location(x, y);
@@ -1706,6 +1712,9 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
             confdir(&turnstate.move.dx, &turnstate.move.dy);
             x = u.ux + turnstate.move.dx;
             y = u.uy + turnstate.move.dy;
+            l = NULL;
+            if (isok(x, y))
+                l = &(level->locations[x][y]);
         }
 
         /* In water, turbulence might alter your actual destination. */
@@ -1741,7 +1750,7 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
             if (distu(u.ustuck->mx, u.ustuck->my) > 2) {
                 /* perhaps it fled (or was teleported or ... ) */
                 u.ustuck = 0;
-            } else if (sticks(youmonst.data)) {
+            } else if (sticks(URACEDATA)) {
                 /* When polymorphed into a sticking monster, u.ustuck means
                    it's stuck to you, not you to it. */
                 pline(msgc_statusend, "You release %s.", mon_nam(u.ustuck));
@@ -2328,15 +2337,15 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
          */
         mem_bg = tmpr->mem_bg;
         if (tmpr->mem_stepped == 0 &&
-            (mem_bg == S_altar || mem_bg == S_throne || mem_bg == S_sink ||
-             mem_bg == S_fountain || mem_bg == S_dnstair ||
+            (mem_bg == S_altar || mem_bg == S_bench || mem_bg == S_throne ||
+             mem_bg == S_sink ||  mem_bg == S_fountain || mem_bg == S_dnstair ||
              mem_bg == S_upstair || mem_bg == S_dnsstair ||
              mem_bg == S_upsstair || mem_bg == S_dnladder ||
              mem_bg == S_upladder))
             action_completed();
     }
 
-    if (hides_under(youmonst.data))
+    if (hides_under(URACEDATA))
         u.uundetected = OBJ_AT(u.ux, u.uy);
     else if (youmonst.data->mlet == S_EEL)
         u.uundetected = is_pool(level, u.ux, u.uy) && !Is_waterlevel(&u.uz);
@@ -2429,12 +2438,12 @@ wounds_message(struct monst *mon)
 const char *
 mon_wounds(struct monst *mon)
 {
-    boolean wounded = ((!nonliving(mon->data) || 
+    boolean wounded = ((!nonliving(mon->data) ||
                         /* Zombies and mummies (but not skeletons) have flesh */
                         ((mon->data->mlet == S_ZOMBIE && mon->data != &mons[PM_SKELETON])
                          || mon->data->mlet == S_MUMMY || mon->data->mlet == S_VAMPIRE
                          || mon->data == &mons[PM_FLESH_GOLEM]))
-                       && !vegetarian(mon->data));   
+                       && !vegetarian(mon->data));
 
     /* Able to detect wounds? */
     if (!(canseemon(mon) || (u.ustuck == mon && u.uswallow && !Blind))
@@ -2539,7 +2548,7 @@ stillinwater:
                 pline_implied(msgc_badidea, "The water burns your flesh!");
                 losehp(dam, killer_msg(DIED, "contact with water"));
             }
-            if (verysmall(youmonst.data))
+            if (verysmall(URACEDATA))
                 water_damage_chain(invent, FALSE);
             if (!u.usteed)
                 (void) water_damage(uarmf, "boots", TRUE);
@@ -2824,7 +2833,7 @@ check_special_room(boolean newlev)
             break;
         case MORGUE:
             if (midnight()) {
-                const char *run = locomotion(youmonst.data, "Run");
+                const char *run = locomotion(URACEDATA, "Run");
 
                 pline(msgc_levelsound, "%s away!  %s away!", run, run);
             } else
@@ -2905,7 +2914,7 @@ dopickup(const struct nh_cmd_arg *arg)
         }
     }
     if (is_pool(level, u.ux, u.uy)) {
-        if (Wwalking || is_floater(youmonst.data) || is_clinger(youmonst.data)
+        if (Wwalking || is_floater(URACEDATA) || is_clinger(URACEDATA)
             || (Flying && !Breathless)) {
             pline(msgc_cancelled,
                   "You cannot dive into the water to pick things up.");
@@ -2917,12 +2926,12 @@ dopickup(const struct nh_cmd_arg *arg)
         }
     }
     if (is_lava(level, u.ux, u.uy)) {
-        if (Wwalking || is_floater(youmonst.data) || is_clinger(youmonst.data)
+        if (Wwalking || is_floater(URACEDATA) || is_clinger(URACEDATA)
             || (Flying && !Breathless)) {
             pline(msgc_cancelled,
                   "You can't reach the bottom to pick things up.");
             return 0;
-        } else if (!likes_lava(youmonst.data)) {
+        } else if (!likes_lava(URACEDATA)) {
             pline(msgc_cancelled,
                   "You would burn to a crisp trying to pick things up.");
             return 0;
@@ -3171,7 +3180,7 @@ lookaround(enum u_interaction_mode uim)
             } else if (is_pool(level, x, y) || is_lava(level, x, y)) {
                 /* Water and lava only stop you if directly in front, and stop
                    you even if you are running. */
-                if (!Levitation && !Flying && !is_clinger(youmonst.data) &&
+                if (!Levitation && !Flying && !is_clinger(URACEDATA) &&
                     x == u.ux + turnstate.move.dx &&
                     y == u.uy + turnstate.move.dy)
                     /* No Wwalking check; otherwise they'd be able to test
@@ -3342,7 +3351,7 @@ weight_cap(void)
             carrcap = (carrcap * (long)youmonst.data->cwt / WT_HUMAN);
     }
 
-    if (Levitation || Is_airlevel(&u.uz)        /* pugh@cornell */
+    if (Is_airlevel(&u.uz)        /* pugh@cornell */
         ||(u.usteed && strongmonst(u.usteed->data)))
         carrcap = MAX_CARR_CAP;
     else {
@@ -3373,7 +3382,7 @@ inv_weight(void)
     while (otmp) {
         if (otmp->oclass == COIN_CLASS)
             wt += (int)(((long)otmp->quan + 50L) / 100L);
-        else if (otmp->otyp != BOULDER || !throws_rocks(youmonst.data))
+        else if (otmp->otyp != BOULDER || !throws_rocks(URACEDATA))
             wt += otmp->owt;
         otmp = otmp->nobj;
     }

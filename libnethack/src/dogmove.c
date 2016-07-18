@@ -35,7 +35,7 @@ is_better_armor(const struct monst *mtmp, struct obj *otmp)
     if (mtmp->data == &mons[PM_KI_RIN] || mtmp->data == &mons[PM_COUATL])
         return FALSE;
 
-    if (cantweararm(mtmp->data) &&
+    if (cantweararm(mtmp->data, &objects[otmp->otyp]) &&
         !(is_cloak(otmp) && mtmp->data->msize == MZ_SMALL))
         return FALSE;
 
@@ -319,7 +319,7 @@ dog_eat(struct monst *mtmp, struct obj *obj, int x, int y, boolean devour)
 
     if (edog->hungrytime < moves)
         edog->hungrytime = moves;
-    nutrit = dog_nutrition_value(mtmp, obj, FALSE);
+    nutrit = dog_nutrition(mtmp, obj);
     poly = polyfodder(obj);
     grow = mlevelgain(obj);
     heal = mhealup(obj);
@@ -508,7 +508,12 @@ dog_invent(struct monst *mtmp, struct edog *edog, int udist)
                             /* starving pet is more aggressive about eating */
                             (edog->mhpmax_penalty && edible == ACCFOOD)) &&
             could_reach_item(mtmp, obj->ox, obj->oy)) {
-            return dog_eat(mtmp, obj, omx, omy, FALSE);
+            if (edog->hungrytime < moves + DOG_SATIATED) {
+                /* if (levitates(mtmp) && levitates_at_will(mtmp, TRUE, FALSE))
+                    return mon_remove_levitation(mtmp, FALSE);
+                    else  if (!levitates(mtmp)) */
+                    return dog_eat(mtmp, obj, omx, omy, FALSE);
+            }
         }
 
         if (can_carry(mtmp, obj) && !obj->cursed &&
@@ -912,7 +917,10 @@ dog_move(struct monst *mtmp, int after)
                 if (obj->cursed)
                     cursemsg[i] = TRUE;
                 else if ((otyp = dogfood(mtmp, obj)) < MANFOOD &&
-                         (otyp < ACCFOOD || edog->hungrytime <= moves)) {
+                         (otyp < ACCFOOD || edog->hungrytime <= moves) &&
+                         edog->hungrytime < moves + DOG_SATIATED /* &&
+                         (!levitates(mtmp) ||
+                         levitates_at_will(mtmp, TRUE, FALSE)) */) {
                     /* Note: our dog likes the food so much that he might eat
                        it even when it conceals a cursed object */
                     nix = nx;
@@ -983,6 +991,15 @@ newdogpos:
            moving it, but it can't eat until after being moved.  Thus the
            do_eat flag. */
         if (do_eat) {
+            /*if (levitates(mtmp)) {
+                if (levitates_at_will(mtmp, TRUE, FALSE)) {
+                    int cancel_levi = mon_remove_levitation(mtmp, FALSE);
+                    if (cancel_levi)
+                        return cancel_levi;
+                    else
+                        impossible("remove levitation performed no action?");
+                }
+                } else */
             if (dog_eat(mtmp, obj, omx, omy, FALSE) == 2)
                 return 2;
         }

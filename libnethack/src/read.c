@@ -72,6 +72,10 @@ doread(const struct nh_cmd_arg *arg)
             "Don't Panic",      /* HHGTTG */
             "Furinkan High School Athletic Dept.",      /* Ranma 1/2 */
             "Hel-LOOO, Nurse!", /* Animaniacs */
+            "Sredni Vashtar went forth.  " /* Saki short story */
+                "His thoughts were red and his teeth were white.",
+            "Keep calm and explore the dungeon.",
+            "One does not simply kill the Wizard of Yendor.",
         };
         const char *buf;
         int erosion;
@@ -759,6 +763,7 @@ do_scroll_water(int cx, int cy, int radius, schar newterrain)
                 break;
         case DOOR:
         case SINK:
+        case BENCH:
         case THRONE:
         case GRAVE:
             pline(msgc_consequence, "The %s is %s away by the %s.",
@@ -1180,7 +1185,6 @@ seffects(struct obj *sobj, boolean *known)
             return trap_detect(sobj);
         else
             return gold_detect(sobj, known);
-    case SCR_FOOD_DETECTION:
     case SPE_DETECT_FOOD:
         if (food_detect(sobj, known))
             return 1;   /* nothing detected */
@@ -1288,6 +1292,36 @@ seffects(struct obj *sobj, boolean *known)
                   "Unfortunately, you can't grasp the details.");
         }
         break;
+    case SCR_CONSECRATION:
+    {
+        int typ = level->locations[u.ux][u.uy].typ;
+        int newtype = confused ? MAGIC_CHEST : ALTAR;
+        aligntyp aalign  = (sobj->cursed || In_hell(&u.uz)) ? A_NONE :
+            (sobj->blessed || In_quest(&u.uz)) ? u.ualignbase[A_ORIGINAL] :
+            (u.ualign.type == A_NEUTRAL) ? A_LAWFUL : A_NEUTRAL;
+        /* the altar can be made chaotic via same-race sacrifice */
+        if (In_endgame(&u.uz) || t_at(level, u.ux, u.uy) ||
+            !ACCESSIBLE(typ) || IS_DOOR(typ) || IS_FURNITURE(typ) ||
+            (typ >= ICE)) { /* ROOM is intended, but corridor for example is
+                               also permitted. */
+            pline(msgc_yafm, "Nothing happens.");
+            break;
+        }
+        *known = TRUE;
+        if (newtype == ALTAR) {
+            level->locations[u.ux][u.uy].altarmask = Align2amask(aalign);
+            if (!Blind || !(Levitation || Flying))
+                pline(msgc_actionok, "The %s beneath your %s rises.",
+                      surface(u.ux, u.uy), makeplural(body_part(FOOT)));
+            pline(msgc_actionok, "You feel a surge of the power of %s.",
+                  align_gname(aalign));
+        } else if (!Blind || !(Levitation || Flying)) {
+            pline(msgc_actionok, "A great chest rises from the %s.",
+                  surface(u.ux, u.uy));
+        }
+        level->locations[u.ux][u.uy].typ = newtype;
+        break;
+    }
     case SCR_WATER:
         *known = TRUE;
         if (Is_airlevel(&u.uz) || Is_earthlevel(&u.uz) || Is_firelevel(&u.uz) ||
@@ -1497,6 +1531,7 @@ seffects(struct obj *sobj, boolean *known)
         break;
     case SCR_STINKING_CLOUD:{
             coord cc;
+            int range = sobj->cursed ? 37 : sobj->blessed ? 70 : 50;
 
             pline(msgc_hint, "You have found a scroll of stinking cloud!");
             *known = TRUE;
@@ -1508,7 +1543,7 @@ seffects(struct obj *sobj, boolean *known)
                 pline(msgc_cancelled, "Never mind.");
                 return 0;
             }
-            if (!cansee(cc.x, cc.y) || distu(cc.x, cc.y) >= 32) {
+            if (!cansee(cc.x, cc.y) || distu(cc.x, cc.y) > range) {
                 pline(msgc_yafm, "You smell %s.", Hallucination ? "breakfast" :
                       "rotten eggs");
                 return 0;

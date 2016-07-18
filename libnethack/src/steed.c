@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Kevin Hugo, 1998-1999. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -457,7 +457,7 @@ landing_spot(coord * spot,      /* landing position (we fill it in) */
                         if (i > 0 ||
                             (((t = t_at(level, x, y)) == 0 || !t->tseen) &&
                              (!sobj_at(BOULDER, level, x, y) ||
-                              throws_rocks(youmonst.data)))) {
+                              throws_rocks(URACEDATA)))) {
                             spot->x = x;
                             spot->y = y;
                             min_distance = distance;
@@ -560,9 +560,9 @@ dismount_steed(int reason)
     if (reason == DISMOUNT_BONES) {
         /* move the steed to an adjacent square */
         if (enexto(&cc, level, u.ux, u.uy, mtmp->data))
-            rloc_to(mtmp, cc.x, cc.y);
+            rloc_to(mtmp, cc.x, cc.y, level);
         else    /* evidently no room nearby; move steed elsewhere */
-            rloc(mtmp, FALSE);
+            rloc(mtmp, FALSE, level);
         return;
     }
     if (!DEADMONSTER(mtmp)) {
@@ -619,7 +619,7 @@ dismount_steed(int reason)
             /* Couldn't... try placing the steed */
         } else if (enexto(&cc, level, u.ux, u.uy, mtmp->data)) {
             /* Keep player here, move the steed to cc */
-            rloc_to(mtmp, cc.x, cc.y);
+            rloc_to(mtmp, cc.x, cc.y, level);
             /* Player stays put */
             /* Otherwise, kill the steed */
         } else {

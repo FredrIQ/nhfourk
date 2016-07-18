@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (C) 1990 by Ken Arromdee                              */
 /* NetHack may be freely redistributed.  See license for details.  */
 
@@ -9,8 +9,6 @@
 
 #include "hack.h"
 #include "edog.h"
-
-extern const int monstr[];
 
 boolean m_using = FALSE;
 
@@ -62,10 +60,10 @@ precheck(struct monst *mon, struct obj *obj, struct musable *m)
                 m_useup(mon, obj);
                 mtmp = makemon(&mons[PM_GHOST], level, cc.x, cc.y, NO_MM_FLAGS);
                 if (!mtmp) {
-                    if (vis)
+                    if (vis && See_invisible)
                         pline(msgc_noconsequence, "%s", empty);
                 } else {
-                    if (vis) {
+                    if (vis && See_invisible) {
                         if (Hallucination) {
                             int idx = rndmonidx();
 
@@ -595,7 +593,7 @@ use_defensive(struct monst *mtmp, struct musable *m)
         }
         if (oseen && how)
             makeknown(how);
-        rloc(mtmp, TRUE);
+        rloc(mtmp, TRUE, level);
         return 2;
     case MUSE_WAN_TELEPORTATION:
         mzapmsg(mtmp, otmp, FALSE);
@@ -859,7 +857,7 @@ use_defensive(struct monst *mtmp, struct musable *m)
         i = dice(6 + 2 * bcsign(otmp), 4);
         mtmp->mhp += i;
         if (mtmp->mhp > mtmp->mhpmax)
-            mtmp->mhp = ++mtmp->mhpmax;
+            mtmp->mhp = mtmp->mhpmax;
         if (!otmp->cursed && !mtmp->mcansee) {
             mtmp->mcansee = 1;
             mtmp->mblinded = 0;
@@ -896,7 +894,7 @@ use_defensive(struct monst *mtmp, struct musable *m)
         mquaffmsg(mtmp, otmp);
         if (otmp->otyp == POT_SICKNESS)
             unbless(otmp);      /* Pestilence */
-        mtmp->mhp = (mtmp->mhpmax += (otmp->blessed ? 8 : 4));
+        mtmp->mhp = mtmp->mhpmax;
         if (!mtmp->mcansee && otmp->otyp != POT_SICKNESS) {
             mtmp->mcansee = 1;
             mtmp->mblinded = 0;
@@ -929,7 +927,7 @@ int
 rnd_defensive_item(struct monst *mtmp, enum rng rng)
 {
     const struct permonst *pm = mtmp->data;
-    int difficulty = monstr[monsndx(pm)];
+    int difficulty = MONSTR(monsndx(pm));
     int trycnt = 0;
 
     if (is_animal(pm) || attacktype(pm, AT_EXPL) || mindless(mtmp->data)
@@ -1584,7 +1582,7 @@ int
 rnd_offensive_item(struct monst *mtmp, enum rng rng)
 {
     const struct permonst *pm = mtmp->data;
-    int difficulty = monstr[monsndx(pm)];
+    int difficulty = MONSTR(monsndx(pm));
 
     if (is_animal(pm) || attacktype(pm, AT_EXPL) || mindless(mtmp->data)
         || noncorporeal(pm) || pm->mlet == S_KOP)
@@ -1659,7 +1657,7 @@ find_misc(struct monst * mtmp, struct musable * m)
         dist2(x, y, mtmp->mux, mtmp->muy) > 36)
         return FALSE;
 
-    if (!stuck && !immobile && !mtmp->cham && monstr[monsndx(mdat)] < 6) {
+    if (!stuck && !immobile && !mtmp->cham && MONSTR(monsndx(mdat)) < 6) {
         boolean ignore_boulders = (verysmall(mdat) || throws_rocks(mdat) ||
                                    passes_walls(mdat));
         for (xx = x - 1; xx <= x + 1; xx++)
@@ -1747,21 +1745,21 @@ find_misc(struct monst * mtmp, struct musable * m)
         }
         nomore(MUSE_WAN_POLYMORPH_SELF);
         if (obj->otyp == WAN_POLYMORPH && !mtmp->cham &&
-            monstr[monsndx(mdat)] < 6) {
+            MONSTR(monsndx(mdat)) < 6) {
             m->misc = obj;
             m->has_misc = MUSE_WAN_POLYMORPH_SELF;
             continue;
         }
         nomore(MUSE_POT_POLYMORPH);
         if (obj->otyp == POT_POLYMORPH && !mtmp->cham &&
-            monstr[monsndx(mdat)] < 6) {
+            MONSTR(monsndx(mdat)) < 6) {
             m->misc = obj;
             m->has_misc = MUSE_POT_POLYMORPH;
         }
         nomore(MUSE_WAN_POLYMORPH);
         if (ranged_stuff && target != &youmonst &&
             obj->otyp == WAN_POLYMORPH && !target->cham && !resists_magm(target) &&
-            (monstr[monsndx(tdat)] < 6 || mprof(mtmp, MP_WANDS) == MP_WAND_EXPERT)) {
+            (MONSTR(monsndx(tdat)) < 6 || mprof(mtmp, MP_WANDS) == MP_WAND_EXPERT)) {
             m->misc = obj;
             m->has_misc = MUSE_WAN_POLYMORPH;
         }
@@ -2110,7 +2108,7 @@ int
 rnd_misc_item(struct monst *mtmp, enum rng rng)
 {
     const struct permonst *pm = mtmp->data;
-    int difficulty = monstr[monsndx(pm)];
+    int difficulty = MONSTR(monsndx(pm));
 
     if (is_animal(pm) || attacktype(pm, AT_EXPL) || mindless(mtmp->data)
         || noncorporeal(pm) || pm->mlet == S_KOP)
@@ -2160,7 +2158,7 @@ searches_for_item(struct monst *mon, struct obj *obj)
         if (typ == WAN_DIGGING)
             return (boolean) (!is_floater(mon->data));
         if (typ == WAN_POLYMORPH)
-            return (boolean) (monstr[monsndx(mon->data)] < 6);
+            return (boolean) (MONSTR(monsndx(mon->data)) < 6);
         if (objects[typ].oc_dir == RAY || typ == WAN_STRIKING ||
             typ == WAN_TELEPORTATION || typ == WAN_CREATE_MONSTER)
             return TRUE;

@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -270,7 +270,9 @@ place_lregion(struct level *lev, xchar lx, xchar ly, xchar hx, xchar hy,
                 (lev, x, y, nlx, nly, nhx, nhy, rtype, oneshot, dest_lvl))
                 return;
 
-    impossible("Couldn't place lregion type %d!", rtype);
+    impossible("Couldn't place lregion type %d in region (%d,%d,%d,%d) "
+               "but not in (%d,%d,%d,%d)!",
+               rtype, lx, ly, hx, hy, nlx, nly, nhx, nhy);
 }
 
 static boolean
@@ -301,7 +303,7 @@ put_lregion_here(struct level *lev, xchar x, xchar y, xchar nlx, xchar nly,
         if (MON_AT(lev, x, y)) {
             /* move the monster if no choice, or just try again */
             if (oneshot)
-                rloc(m_at(lev, x, y), FALSE);
+                rloc(m_at(lev, x, y), FALSE, lev);
             else
                 return FALSE;
         }
@@ -906,7 +908,7 @@ movebubbles(void)
                         b->cons = cons;
 
                         if (mon->wormno)
-                            remove_worm(mon);
+                            remove_worm(mon, level);
                         else
                             remove_monster(level, x, y);
 

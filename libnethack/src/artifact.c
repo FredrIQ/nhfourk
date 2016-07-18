@@ -540,7 +540,7 @@ touch_artifact(struct obj *obj, const struct monst *mon)
             ((oart->role != NON_PM && !Role_if(oart->role)) ||
              (oart->race != NON_PM && !Race_if(oart->race)));
         badalign = (oart->spfx & SPFX_RESTR) && oart->alignment != A_NONE &&
-            (oart->alignment != u.ualign.type || u.ualign.record < 0);
+            (oart->alignment != u.ualign.type || UALIGNREC < 0);
     } else if (!is_covetous(mon->data) && !is_mplayer(mon->data)) {
         badclass = self_willed && oart->role != NON_PM &&
             oart != &artilist[ART_EXCALIBUR];
@@ -1452,9 +1452,9 @@ arti_invoke(struct obj *obj)
         case ENERGY_BOOST:{
                 int epboost = (u.uenmax + 1 - u.uen) / 2;
 
-                if (epboost > 120)
-                    epboost = 120;      /* arbitrary */
-                else if (epboost < 12)
+                if (epboost > 240)
+                    epboost = 240;      /* arbitrary */
+                else if (epboost < 60)
                     epboost = u.uenmax - u.uen;
                 if (epboost) {
                     pline(msgc_statusgood, "You feel re-energized.");
@@ -1469,6 +1469,7 @@ arti_invoke(struct obj *obj)
             else
                 do_uncurse_effect(FALSE, TRUE);
             update_inventory();
+            break;
         }
         case UNTRAP:{
                 if (!untrap(&(struct nh_cmd_arg){.argtype = 0}, TRUE)) {

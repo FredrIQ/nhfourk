@@ -849,12 +849,14 @@ you_moved(void)
                        pline(msgc_statusheal, "You move more freely.");
                 }
                 if ((u.uintrinsic[FAST] & INTRINSIC) && (rn2(3) != 0))
-                    u.moveamt += NORMAL_SPEED / 2; /* intrinsic speed */
+                    u.moveamt += NORMAL_SPEED / 3; /* intrinsic speed */
+                else if (u.uintrinsic[FAST] & INTRINSIC)
+                    u.moveamt += NORMAL_SPEED / 12;
                 if (u.uintrinsic[FAST] & ~INTRINSIC)
-                    u.moveamt = u.moveamt * 4 / 3; /* temporary haste/potion */
+                    u.moveamt = u.moveamt * 5 / 4; /* temporary haste/potion */
                 if (mworn_extrinsic(&youmonst, FAST))
-                    u.moveamt += rn2(3) ? (NORMAL_SPEED * 3 / 5) :
-                        (NORMAL_SPEED / 3); /* extrinsic speed (e.g., boots) */
+                    u.moveamt += rn2(3) ? (NORMAL_SPEED * 3 / 7) :
+                        (NORMAL_SPEED / 4); /* extrinsic speed (e.g., boots) */
             }
 
             switch (wtcap) {
@@ -963,12 +965,20 @@ you_moved(void)
                 }
             } else if (Race_if(PM_SYLPH) && (u.uhp < (u.uhpmax / 2)) &&
                        !(moves % 4) && !challengemode) {
+                schar floortype = level->locations[u.ux][u.uy].typ;
                 if (!Inhell)
-                    if (!can_feel_ground(&youmonst))
+                    if (floortype == ALTAR || floortype == ICE ||
+                        floortype == LAVAPOOL || floortype == MAGIC_CHEST ||
+                        floortype == DRAWBRIDGE_DOWN || floortype == AIR)
                         pline(msgc_hint,
                               "You try to draw healing from your surroundings, "
-                              "but your toes cannot even feel the %s.",
+                              "but you cannot feel the ground through the %s.",
                               surface(u.ux, u.uy));
+                    else if (!can_feel_ground(&youmonst))
+                        pline(msgc_hint,
+                              "You try to draw healing from your surroundings, "
+                              "but your %s cannot even feel the %s.",
+                              makeplural(body_part(TOE)), surface(u.ux, u.uy));
                     else if (u.uhs >= WEAK)
                         pline(msgc_hint, "You try to draw healing from your "
                               "surroundings, but you are too weak.");
@@ -1054,6 +1064,8 @@ you_moved(void)
                 break_conduct(conduct_displacement);
             if (Invisible)
                 break_conduct(conduct_invisible);
+            if (Reflecting)
+                break_conduct(conduct_reflection);
 
             if (Searching && !u_helpless(hm_all))
                 dosearch0(1);

@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -75,7 +75,7 @@ throw_obj(struct obj *obj, const struct nh_cmd_arg *arg,
         return 0;
     }
     if ((obj->oartifact == ART_MJOLLNIR && ACURR(A_STR) < STR19(25))
-        || (obj->otyp == BOULDER && !throws_rocks(youmonst.data))) {
+        || (obj->otyp == BOULDER && !throws_rocks(URACEDATA))) {
         pline(msgc_cancelled1, "It's too heavy.");
         return 1;
     }
@@ -963,8 +963,8 @@ throwit(struct obj *obj, long wep_mask, /* used to re-equip returning boomerang
     } else if (dz) {
         if (dz < 0 && Role_if(PM_VALKYRIE) && obj->oartifact == ART_MJOLLNIR &&
             !impaired) {
-            pline(msgc_yafm, "%s the %s and returns to your hand!",
-                  Tobjnam(obj, "hit"), ceiling(u.ux, u.uy));
+            pline(msgc_yafm, "%s the %s and returns to your %s!",
+                  Tobjnam(obj, "hit"), ceiling(u.ux, u.uy), body_part(HAND));
             obj = addinv(obj);
             encumber_msg();
             setuwep(obj);
@@ -1094,11 +1094,11 @@ throwit(struct obj *obj, long wep_mask, /* used to re-equip returning boomerang
             /* we must be wearing Gauntlets of Power to get here */
             sho_obj_return_to_u(obj, dx, dy);   /* display its flight */
 
-            int dmg = rn2_on_rng(2, rng_mjollnir_return);
-
             if (rn2_on_rng(100, rng_mjollnir_return) && !impaired) {
-                pline(msgc_actionok, "%s to your hand!",
-                      Tobjnam(obj, "return"));
+                pline(msgc_actionok, "%s to your %s!",
+                      Tobjnam(obj, "return"), body_part(HAND));
+                if (Role_if(PM_VALKYRIE) && !rn2_on_rng(50, rng_role_alignment))
+                    adjalign(1);
                 obj = addinv(obj);
                 encumber_msg();
                 setuwep(obj);
@@ -1106,21 +1106,11 @@ throwit(struct obj *obj, long wep_mask, /* used to re-equip returning boomerang
                 if (cansee(bhitpos.x, bhitpos.y))
                     newsym(bhitpos.x, bhitpos.y);
             } else {
-                if (!dmg) {
-                    pline(msgc_substitute, Blind ? "%s lands %s your %s." :
-                          "%s back to you, landing %s your %s.",
-                          Blind ? "Something" : Tobjnam(obj, "return"),
-                          Levitation ? "beneath" : "at",
-                          makeplural(body_part(FOOT)));
-                } else {
-                    dmg += rnd(3);
-                    pline(msgc_substitute, Blind ? "%s your %s!" :
-                          "%s back toward you, hitting your %s!",
-                          Tobjnam(obj, Blind ? "hit" : "fly"),
-                          body_part(ARM));
-                    artifact_hit(NULL, &youmonst, obj, &dmg, 0);
-                    losehp(dmg, killer_msg_obj(DIED, obj));
-                }
+                pline(msgc_substitute, Blind ? "%s lands %s your %s." :
+                      "%s back to you, landing %s your %s.",
+                      Blind ? "Something" : Tobjnam(obj, "return"),
+                      Levitation ? "beneath" : "at",
+                      makeplural(body_part(FOOT)));
                 if (ship_object(obj, u.ux, u.uy, FALSE)) {
                     thrownobj = NULL;
                     return;
@@ -1604,7 +1594,7 @@ nopick:
     if (!Blind)
         pline(msgc, "%s", buf);
     if (!tele_restrict(mon))
-        rloc(mon, TRUE);
+        rloc(mon, TRUE, level);
     return ret;
 }
 

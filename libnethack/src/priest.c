@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Izchak Miller, Steve Linhart, 1989.              */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -219,7 +219,7 @@ priestini(struct level *lev, struct mkroom *sroom, int sx, int sy,
         impossible("Unable to find location for priest in shrine");
     } else {
         if (MON_AT(lev, priest_pos->x, priest_pos->y))
-            rloc(m_at(lev, priest_pos->x, priest_pos->y), FALSE);
+            rloc(m_at(lev, priest_pos->x, priest_pos->y), FALSE, lev);
 
         priest = makemon(&mons[sanctum ? PM_HIGH_PRIEST : PM_ALIGNED_PRIEST],
                          lev, priest_pos->x, priest_pos->y, MM_ALLLEVRNG);
@@ -425,7 +425,7 @@ intemple(int roomno)
             if (!sanctum) {
                 /* !tended -> !shrined */
                 if (!shrined || !p_coaligned(priest) ||
-                    u.ualign.record <= ALGN_SINNED)
+                    UALIGNREC <= ALGN_SINNED)
                     pline_implied(msgc_levelsound,
                                   "You have a%s forbidding feeling...",
                                   (!shrined) ? "" : " strange");
@@ -453,7 +453,7 @@ intemple(int roomno)
                 if (!((mtmp = makemon(&mons[PM_GHOST], level, 
                                       u.ux, u.uy, NO_MM_FLAGS))))
                     return;
-                if (!Blind || sensemon(mtmp))
+                if ((!Blind && See_invisible) || sensemon(mtmp))
                     pline(msgc_statusbad,
                           "An enormous ghost appears next to you!");
                 else
@@ -472,7 +472,7 @@ void
 priest_talk(struct monst *priest)
 {
     boolean coaligned = p_coaligned(priest);
-    boolean strayed = (u.ualign.record < 0);
+    boolean strayed = (UALIGNREC < 0);
 
     /* KMH, conduct */
     break_conduct(conduct_gnostic);
@@ -546,7 +546,7 @@ priest_talk(struct monst *priest)
         } else if (offer < (u.ulevel * 400)) {
             verbalize(msgc_aligngood, "Thou art indeed a pious individual.");
             if (money_cnt(invent) < (offer * 2L)) {
-                if (coaligned && u.ualign.record <= ALGN_SINNED)
+                if (coaligned && UALIGNREC <= ALGN_SINNED)
                     adjalign(1);
                 verbalize(msgc_statusgood, "I bestow upon thee a blessing.");
                 incr_itimeout(&HClairvoyant, rn1(500, 500));
@@ -586,7 +586,7 @@ mk_roamer(const struct permonst *ptr, aligntyp alignment, struct level *lev,
         return NULL;
 
     if (MON_AT(lev, x, y))
-        rloc(m_at(lev, x, y), FALSE);   /* insurance */
+        rloc(m_at(lev, x, y), FALSE, lev);   /* insurance */
 
     if (!(roamer = makemon(ptr, lev, x, y, mm_flags)))
         return NULL;
@@ -629,7 +629,7 @@ in_your_sanctuary(struct monst *mon,    /* if non-null, <mx,my> overrides <x,y>
             return FALSE;
         x = mon->mx, y = mon->my;
     }
-    if (u.ualign.record <= ALGN_SINNED) /* sinned or worse */
+    if (UALIGNREC <= ALGN_SINNED) /* sinned or worse */
         return FALSE;
     if ((roomno = temple_occupied(u.urooms)) == 0 ||
         roomno != *in_rooms(level, x, y, TEMPLE))

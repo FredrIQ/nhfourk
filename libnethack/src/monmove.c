@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -94,21 +94,54 @@ dochugw(struct monst *mtmp)
     return rd;
 }
 
-
+/* Note that if monsters are added to or removed from the list of ones
+   that ignore Elbereth, their difficulty may need to be reconsidered. */
 boolean
 onscary(int x, int y, struct monst * mtmp)
 {
-    if (mtmp->isshk || mtmp->isgd || mtmp->iswiz || !mtmp->mcansee ||
-        mtmp->mpeaceful || mtmp->data->mlet == S_HUMAN || is_lminion(mtmp) ||
-        mtmp->data == &mons[PM_ANGEL] || is_rider(mtmp->data) ||
-        mtmp->data == &mons[PM_MINOTAUR])
+    /* Certain creatures are directly resistant to being magically scared:
+       Rodney, lawful minions, angels, and the other Riders. */
+    if (mtmp->iswiz || is_lminion(mtmp) || mtmp->data == &mons[PM_ANGEL] ||
+        is_rider(mtmp->data)) {
         return FALSE;
+    }
 
-    return (boolean) (sobj_at(SCR_SCARE_MONSTER, level, x, y)
-                      || (sengr_at("Elbereth", x, y) &&
-                          flags.elbereth_enabled && !Conflict && !Stormprone)
-                      || (mtmp->data->mlet == S_VAMPIRE &&
-                          IS_ALTAR(level->locations[x][y].typ)));
+    /* Nothing is afraid to attack you if you wield Stormbringer. */
+    if ((Stormprone) && (x == u.ux) && (y == u.uy)) {
+        return FALSE;
+    }
+
+    /* Vampires are afraid of altars (and can sense them even if blind): */
+    if (IS_ALTAR(level->locations[x][y].typ) &&
+        mtmp->data->mlet == S_VAMPIRE) {
+        return TRUE;
+    }
+
+    /* Blinded monsters can't see scary things: */
+    if (!mtmp->mcansee) {
+        return FALSE;
+    }
+
+    /* Scrolls of scare monster have fewer restrictions than Elbereth: */
+    if (sobj_at(SCR_SCARE_MONSTER, level, x, y)) {
+        return TRUE;
+    }
+
+    /* Some creatures just don't fear the name of Elbereth: */
+    if (mtmp->isshk || mtmp->isgd || mtmp->mpeaceful ||
+        mtmp->data->mflagsr == MRACE_ELF || mtmp->data == &pm_nemesis ||
+        mtmp->data == &mons[PM_WATCHMAN] ||
+        mtmp->data == &mons[PM_WATCH_CAPTAIN] ||
+        mtmp->data == &mons[PM_MINOTAUR]) {
+        return FALSE;
+    }
+
+    char *engr = (engr_at(level,x,y)) ? (engr_at(level,x,y))->engr_txt : "x";
+    return ((flags.elbereth_enabled && !Conflict &&
+             ((strncmpi(engr, "Elbereth", strlen(engr)) == 0) ||
+              (strncmpi(engr, "Elbereth Gilthoniel", strlen(engr)) == 0) ||
+              (strncmpi(engr, "A Elbereth Gilthoniel", strlen(engr)) == 0)))
+            ? TRUE : FALSE);
 }
 
 
@@ -146,7 +179,8 @@ disturb(struct monst *mtmp)
         alertness++;
     if (mtmp->data == &mons[PM_ETTIN])
         alertness += 2; /* Ettins are hard to surprise, having two heads */
-    if ((mtmp->data->mlet == S_DOG || mtmp->data->mlet == S_HUMAN) ||
+    if ((mtmp->data->mlet == S_DOG || mtmp->data->mlet == S_HUMAN ||
+         mtmp->data->mlet == S_QUENDI) ||
         (!rn2(7) && mtmp->m_ap_type != M_AP_FURNITURE &&
          mtmp->m_ap_type != M_AP_OBJECT))
         alertness++;
@@ -342,7 +376,7 @@ dochug(struct monst *mtmp)
     /* some monsters teleport */
     if (mtmp->mflee && !rn2(40) && can_teleport(mdat) && !mtmp->iswiz &&
         !level->flags.noteleport) {
-        rloc(mtmp, TRUE);
+        rloc(mtmp, TRUE, mtmp->dlevel);
         return 0;
     }
     if (mdat->msound == MS_SHRIEK && !um_dist(mtmp->mx, mtmp->my, 1))
@@ -400,7 +434,7 @@ dochug(struct monst *mtmp)
                 if (is_demon(youmonst.data)) {
                     /* "Good hunting, brother" */
                     if (!tele_restrict(mtmp))
-                        rloc(mtmp, TRUE);
+                        rloc(mtmp, TRUE, mtmp->dlevel);
                 } else {
                     mtmp->minvis = mtmp->perminvis = 0;
                     /* Why? For the same reason in real demon talk */
@@ -819,7 +853,7 @@ m_move(struct monst *mtmp, int after)
     if (ptr == &mons[PM_TENGU] && !rn2(5) && !mtmp->mcan &&
         !tele_restrict(mtmp)) {
         if (mtmp->mhp < 7 || mtmp->mpeaceful || rn2(2))
-            rloc(mtmp, TRUE);
+            rloc(mtmp, TRUE, mtmp->dlevel);
         else
             mnexto(mtmp);
         mmoved = 1;
@@ -855,13 +889,14 @@ not_special:
 
     /* monsters with limited control of their actions */
     if (((monsndx(ptr) == PM_STALKER || ptr->mlet == S_BAT ||
-          ptr->mlet == S_LIGHT) && !rn2(3)))
+          (monsndx(ptr) == PM_YELLOW_LIGHT ||
+           monsndx(ptr) == PM_BLACK_LIGHT)) && !rn2(3)))
         appr = 0;
 
     if ((!mtmp->mpeaceful || !rn2(10)) && (!Is_rogue_level(&u.uz))) {
         boolean in_line = lined_up(mtmp) &&
             (distmin(mtmp->mx, mtmp->my, mtmp->mux, mtmp->muy) <=
-             (throws_rocks(youmonst.data) ? 20 : ACURRSTR / 2 + 1));
+             (throws_rocks(URACEDATA) ? 20 : ACURRSTR / 2 + 1));
 
         if (appr != 1 || !in_line)
             setlikes = TRUE;
@@ -1070,7 +1105,7 @@ not_special:
 
     } else {
         if (is_unicorn(ptr) && rn2(2) && !tele_restrict(mtmp)) {
-            rloc(mtmp, TRUE);
+            rloc(mtmp, TRUE, mtmp->dlevel);
             return 1;
         }
         if (mtmp->wormno)

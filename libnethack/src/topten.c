@@ -63,7 +63,11 @@ static char end_killer[DTHSZ + 1] = {0};
 
 /* xlogfile writing. Based on the xlogfile patch by Aardvark Joe. */
 
-#define SEP ":"
+#ifdef XLOGFILE_FIELD_SEPARATOR
+#define SEP XLOGFILE_FIELD_SEPARATOR
+#else
+#define SEP "\t"
+#endif
 #define SEPC (SEP[0])
 
 static void
@@ -138,6 +142,8 @@ encode_uevent(void)
         c |= 0x00080000UL;
     if (historysearch("reached the Astral Plane", TRUE))
         c |= 0x000F0000UL;
+    if (historysearch("entered the Rogue tribute level", TRUE))
+        c |= 0x00100000UL;
     return c;
 }
 

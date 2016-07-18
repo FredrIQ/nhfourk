@@ -4,6 +4,7 @@
 /* NetHack may be freely redistributed.  See license for details. */
 
 #include "hack.h"
+#include "artifact.h"
 
 /* Summary of all NetHack's object naming functions:
    obj_typename(otyp): entry in discovery list, from player's point of view
@@ -1894,9 +1895,7 @@ static const struct alt_spellings {
     {"meat", HUGE_CHUNK_OF_MEAT},
     {"wand of teleport", WAN_TELEPORTATION},
     {"scroll of teleport", SCR_TELEPORTATION},
-    {"scroll of detect food", SCR_FOOD_DETECTION},
     {"scroll of detect gold", SCR_GOLD_DETECTION},
-    {"detect food", SCR_FOOD_DETECTION},
     {"detect gold", SCR_GOLD_DETECTION},
     {NULL, 0}};
 
@@ -1939,6 +1938,7 @@ readobjnam(char *bp, struct obj *no_wish, boolean from_user, int wishtype)
     struct fruit *f;
     int ftype = gamestate.fruits.current;
     const char *fruitbuf;
+    struct artifact *art = (struct artifact *) 0;
 
     /* Fruits may not mess up the ability to wish for real objects (since you
        can leave a fruit in a bones file and it will be added to another
@@ -2513,6 +2513,15 @@ srch:
                     && !can_fall_thru(level))
                     trap = ROCKTRAP;
                 maketrap(level, u.ux, u.uy, trap, rng_main);
+                if (trap == VIBRATING_SQUARE) {
+                    struct trap *trap = t_at(level, gamestate.inv_pos.x,
+                                                    gamestate.inv_pos.y);
+                    if (trap) {
+                        deltrap(level, trap);
+                        gamestate.inv_pos.x = u.ux;
+                        gamestate.inv_pos.y = u.uy;
+                    }
+                }
                 pline(msgc_info, "%s.", An(tname));
                 return &zeroobj;
             }
@@ -2525,6 +2534,12 @@ srch:
                 level->locations[u.ux][u.uy].blessedftn = 1;
             pline(msgc_info, "A %sfountain.",
                   level->locations[u.ux][u.uy].blessedftn ? "magic " : "");
+            newsym(u.ux, u.uy);
+            return &zeroobj;
+        }
+        if (!BSTRCMP(bp, p - 5, "bench")) {
+            level->locations[u.ux][u.uy].typ = BENCH;
+            pline(msgc_info, "A bench.");
             newsym(u.ux, u.uy);
             return &zeroobj;
         }
@@ -2880,6 +2895,8 @@ typfnd:
         if (otmp->oartifact) {
             otmp->quan = 1L;
             break_conduct(conduct_artiwish);      /* KMH, conduct */
+            if (otmp && otmp->oartifact)
+                art = &artilist[(int) otmp->oartifact];
         }
     }
 
@@ -2887,7 +2904,10 @@ typfnd:
     /* and make them pay; charge them for the wish anyway! */
     if ((is_quest_artifact(otmp) ||
          (otmp->oartifact &&
-          rn2_on_rng(nartifact_exist(), rng_artifact_wish) >
+          rn2_on_rng((nartifact_exist() + ((art && art->alignment != A_NONE &&
+                                            art->alignment != u.ualign.type) ?
+                                           (challengemode ? 2 : 1) : 0)),
+                     rng_artifact_wish) >
           ((wishtype == 3) ? 2 : 1))) && !wizard) {
         artifact_exists(otmp, ONAME(otmp), FALSE);
         obfree(otmp, NULL);

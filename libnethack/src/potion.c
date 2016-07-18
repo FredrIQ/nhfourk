@@ -15,6 +15,7 @@ static const char beverages[] = { POTION_CLASS, 0 };
 static long itimeout(long);
 static long itimeout_incr(long, int);
 static void ghost_from_bottle(void);
+static int overheal_amount(int);
 static short mixtype(struct obj *, struct obj *);
 
 /* force `val' to be within valid range for intrinsic timeout value */
@@ -291,7 +292,6 @@ make_hallucinated(long xtime,   /* nonzero if this is an attempt to turn on
     return changed;
 }
 
-
 static void
 ghost_from_bottle(void)
 {
@@ -302,7 +302,7 @@ ghost_from_bottle(void)
         pline(msgc_failrandom, "This bottle turns out to be empty.");
         return;
     }
-    if (Blind) {
+    if (Blind || !See_invisible) {
         pline(msgc_substitute, "As you open the bottle, something emerges.");
         return;
     }
@@ -392,6 +392,7 @@ dodrink(const struct nh_cmd_arg *arg)
         if (!strcmp(potion_descr, "milky") && flags.ghost_count < MAXMONNO &&
             !rn2(POTION_OCCUPANT_CHANCE(flags.ghost_count))) {
             ghost_from_bottle();
+            break_conduct(conduct_potions);
             useup(potion);
             return 1;
         } else if (!strcmp(potion_descr, "smoky") &&
@@ -399,6 +400,7 @@ dodrink(const struct nh_cmd_arg *arg)
                    !rn2_on_rng(POTION_OCCUPANT_CHANCE(flags.djinni_count),
                                rng_smoky_potion)) {
             djinni_from_bottle(potion);
+            break_conduct(conduct_potions);
             useup(potion);
             return 1;
         }
@@ -418,6 +420,8 @@ dopotion(struct obj *otmp)
         setuwep(0);
     }
 
+    if (objects[otmp->otyp].oc_magic)
+        break_conduct(conduct_potions);
     otmp->in_use = TRUE;
     nothing = unkn = 0;
     if ((retval = peffects(otmp)) >= 0)
@@ -440,6 +444,14 @@ dopotion(struct obj *otmp)
     return 1;
 }
 
+static int
+overheal_amount(int maxhp)
+{
+    int max = (250 - maxhp) / 5;
+    if ((max <= 0) || (ilog2(max) <= 0))
+        return 0;
+    return rnd(ilog2(max)) / 1000;
+}
 
 int
 peffects(struct obj *otmp)
@@ -830,26 +842,32 @@ peffects(struct obj *otmp)
             u.uexp = rndexp(TRUE);
         break;
     case POT_HEALING:
+        if (otmp->blessed && (u.ucramps > 1))
+            u.ucramps = u.ucramps * 3 / 4 - 1;
         pline(msgc_statusheal, "You feel better.");
-        healup(dice(6 + 2 * bcsign(otmp), 4), !otmp->cursed ? 1 : 0,
+        healup(dice(6 + 2 * bcsign(otmp), 4), 0,
                !!otmp->blessed, !otmp->cursed);
         exercise(A_CON, TRUE);
         break;
     case POT_EXTRA_HEALING:
+        if (otmp->blessed && (u.ucramps > 1))
+            u.ucramps = u.ucramps * 2 / 3 - 1;
         pline(msgc_statusheal, "You feel much better.");
         healup(dice(6 + 2 * bcsign(otmp), 8),
-               otmp->blessed ? 5 : !otmp->cursed ? 2 : 0, !otmp->cursed, TRUE);
+               overheal_amount(u.uhpmax), !otmp->cursed, TRUE);
         make_hallucinated(0L, TRUE);
         exercise(A_CON, TRUE);
         exercise(A_STR, TRUE);
         break;
     case POT_FULL_HEALING:
+        if (otmp->blessed && (u.ucramps > 1))
+            u.ucramps = u.ucramps * 1 / 2 - 1;
         pline(msgc_statusheal, "You feel completely healed.");
-        healup(400, 4 + 4 * bcsign(otmp), !otmp->cursed, TRUE);
+        healup(250, 0, !otmp->cursed, TRUE);
         /* Restore one lost level if blessed */
         if (otmp->blessed && u.ulevel < u.ulevelmax) {
             /* when multiple levels have been lost, drinking multiple potions
-               will only get half of them back */
+               will only get half of them back, in challenge mode */
             if (challengemode)
                 u.ulevelmax -= 1;
             pluslvl(FALSE);
@@ -899,13 +917,17 @@ peffects(struct obj *otmp)
             else
                 pline(msgc_statusheal,
                       "Magical energies course through your body.");
-            num = rnd(5) + 5 * otmp->blessed + 1;
+            num = rnd(3) + 3 * otmp->blessed + 1;
             u.uenmax += (otmp->cursed) ? -num : num;
-            u.uen += (otmp->cursed) ? -num : num;
+            num = (u.uenmax <= 20) ? rnd(1 + u.uenmax * 2 / 3) :
+                (abs(num) * rnd(1 + u.uenmax / 10));
+            u.uen += (otmp->cursed) ? (1 + num / 2) : num;
             if (u.uenmax <= 0)
                 u.uenmax = 0;
             if (u.uen <= 0)
                 u.uen = 0;
+            if (u.uen > u.uenmax)
+                u.uen = u.uenmax;
         }
         break;
     case POT_OIL:      /* P. Winner */
@@ -1445,6 +1467,7 @@ mixtype(struct obj *o1, struct obj *o2)
     case POT_HEALING:
         switch (o2->otyp) {
         case POT_SPEED:
+            return POT_FULL_HEALING;
         case POT_GAIN_LEVEL:
         case POT_GAIN_ENERGY:
             return POT_EXTRA_HEALING;
@@ -1458,6 +1481,7 @@ mixtype(struct obj *o1, struct obj *o2)
     case POT_FULL_HEALING:
         switch (o2->otyp) {
         case POT_GAIN_LEVEL:
+            return POT_GAIN_ENERGY;
         case POT_GAIN_ENERGY:
             return POT_GAIN_ABILITY;
         }
@@ -1476,6 +1500,9 @@ mixtype(struct obj *o1, struct obj *o2)
             return POT_FRUIT_JUICE;
         break;
     case POT_GAIN_LEVEL:
+        if (o2->otyp == POT_FULL_HEALING)
+            return POT_GAIN_ENERGY;
+        /* else fall through */
     case POT_GAIN_ENERGY:
         switch (o2->otyp) {
         case POT_CONFUSION:

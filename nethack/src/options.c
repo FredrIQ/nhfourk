@@ -67,10 +67,10 @@ static struct nh_enum_option palette_spec =
     { palette_list, listlen(palette_list) };
 
 static struct nh_listitem animation_list[] = {
-    {ANIM_INSTANT, "instant"},
+    {ANIM_INSTANT, "instant (skip)"},
     {ANIM_INTERRUPTIBLE, "interruptible"},
-    {ANIM_ALL, "everything"},
-    {ANIM_SLOW, "slow"},
+    {ANIM_ALL,  "animate normally"},
+    {ANIM_SLOW, "animate slowly"},
 };
 static struct nh_enum_option animation_spec =
     { animation_list, listlen(animation_list) };
@@ -131,7 +131,7 @@ static struct nh_option_desc curses_options[] = {
      "interpret Alt-letter as ESC letter",
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"animation", "Commands and Confirmations",
-     "which commands to run slowly",
+     "how to animate multi-turn actions and events",
      nh_birth_ingame, OPTTYPE_ENUM, {.e = ANIM_ALL}},
     {"border", "Screen Layout",
      "what to draw borders around",
@@ -163,6 +163,9 @@ static struct nh_option_desc curses_options[] = {
     {"extmenu", "Commands and Confirmations",
      "use a menu for selecting extended commands (#)",
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
+    {"hintswindow", "Screen Layout",
+     "show the hints window (\"extrawin\")",
+     nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"invweight", "Messages and Menus",
      "show item weights in the inventory",
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
@@ -236,6 +239,7 @@ static struct nhlib_boolopt_map boolopt_map[] = {
     {"draw_terrain", &settings.bgbranding},
     {"darkgray", &settings.darkgray},
     {"extmenu", &settings.extmenu},
+    {"hintswindow", &settings.extrawin},
     {"invweight", &settings.invweight},
     {"mouse", &settings.mouse},
     {"msgnomerge", &settings.msgnomerge},

@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -159,7 +159,7 @@ flooreffects(struct obj * obj, int x, int y, const char *verb)
                 }
                 mtmp->mtrapped = 0;
             } else {
-                if (!Passes_walls && !throws_rocks(youmonst.data)) {
+                if (!Passes_walls && !throws_rocks(URACEDATA)) {
                     losehp(rnd(15), "squished under a boulder");
                     return FALSE;       /* player remains trapped */
                 } else
@@ -1168,7 +1168,7 @@ goto_level(d_level * newlevel, boolean at_stairs, boolean falling,
                 with the situation, so only say something when debugging */
             pline(msgc_debug, "(monster in hero's way)");
 
-            if (!rloc(mtmp, TRUE))
+            if (!rloc(mtmp, TRUE, level))
                 /* no room to move it; send it away, to return later */
                 migrate_to_level(mtmp, ledger_no(&u.uz), MIGR_RANDOM, NULL);
         }
@@ -1242,9 +1242,13 @@ goto_level(d_level * newlevel, boolean at_stairs, boolean falling,
             pline(msgc_levelwarning, "%s", mesg);
     }
 
-    if (new && Is_rogue_level(&u.uz))
+    if (new && Is_rogue_level(&u.uz)) {
         pline(msgc_branchchange,
               "You enter what seems to be an older, more primitive world.");
+        if (!historysearch("entered the Rogue tribute level", TRUE)) {
+            historic_event(FALSE, TRUE, "entered the Rogue tribute level.");
+        }
+    }
     /* Final confrontation */
     if (In_endgame(&u.uz) && newdungeon && Uhave_amulet)
         resurrect();
@@ -1349,7 +1353,7 @@ final_level(void)
                           FALSE, i == angel_count ? MM_ALLLEVRNG : NO_MM_FLAGS);
         }
 
-    } else if (u.ualign.record > 8) {   /* fervent */
+    } else if (UALIGNREC > 8) {   /* fervent */
         /* worthy: generate one angel on astral_rng and buff it using the main
            RNG (except for m_lev which is relevant to balance), no others */
         pline(msgc_statusgood,
@@ -1577,7 +1581,7 @@ revive_mon(void *arg, long timeout)
         && ((mtmp = m_at(level, x, y)) != 0)) {
         boolean notice_it = canseemon(mtmp);    /* before rloc() */
         const char *monname = Monnam(mtmp);           /* ditto */
-        if (rloc(mtmp, TRUE)) {
+        if (rloc(mtmp, TRUE, level)) {
             if (notice_it && !canseemon(mtmp))
                 pline(msgc_monneutral, "%s vanishes.", monname);
             else if (!notice_it && canseemon(mtmp))
@@ -1611,6 +1615,10 @@ revive_mon(void *arg, long timeout)
 int
 donull(const struct nh_cmd_arg *arg)
 {
+    if ((u.uhp < u.uhpmax) && IS_BENCH(level->locations[u.ux][u.uy].typ)) {
+        u.uhp++;
+        pline_once(msgc_statusheal, "You rest on the bench.");
+    }
     limited_turns(arg, occ_wait);
     return 1;   /* Do nothing, but let other things happen */
 }

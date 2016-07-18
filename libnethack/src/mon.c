@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -452,7 +452,7 @@ minliquid(struct monst *mtmp)
             if (!DEADMONSTER(mtmp)) {
                 fire_damage(mtmp->minvent, FALSE, FALSE, mtmp->mx, mtmp->my);
                 if (alive_means_lifesaved) {
-                    rloc(mtmp, TRUE);
+                    rloc(mtmp, TRUE, level);
                     /* Analogous to player case: if we have nowhere to place the
                        monster, it ends up back in the lava, and dies again */
                     minliquid(mtmp);
@@ -480,7 +480,7 @@ minliquid(struct monst *mtmp)
             }
             mondead(mtmp);
             if (!DEADMONSTER(mtmp)) {
-                rloc(mtmp, TRUE);
+                rloc(mtmp, TRUE, mtmp->dlevel);
                 water_damage_chain(mtmp->minvent, FALSE);
                 minliquid(mtmp);
                 return 0;
@@ -2269,27 +2269,38 @@ cleanup:
         adjalign(-1);
 
     /* malign was already adjusted for u.ualign.type and randomization */
-    /* NetHack Fourk Balance Adjustment:  No alignment points for everyday
-       monster killing.  That completely defeats the purpose of even bothering
-       to keep track of player alignment record.  So no.  We still have an
-       alignment penalty for killing always-peacefuls, however, and lawfuls
+    /* NetHack Fourk Balance Adjustment:  Most player characters get no
+       alignment points for everyday monster killing (Barbarians being the
+       exception, since they are intended to be the easy role for new players;
+       but even Barbarians can only get one point per monster, which is much
+       less than 3.4.3's unboundedly unbalanced heaps of points).  We still have
+       an alignment penalty for killing always-peacefuls, however, and lawfuls
        have a penalty for killing generated-peacefuls as well. */
-    if (mtmp->malign < 0) {
+    if ((mtmp->malign < 0) || Role_if(PM_BARBARIAN)) {
         if (always_peaceful(mtmp->data))
             adjalign(-3);
+        else if (Role_if(PM_BARBARIAN))
+            adjalign(sgn(mtmp->malign));
         else if (u.ualign.type == A_LAWFUL)
             adjalign(-1);
     }
     /* Chaotics now get a point for killing hostiles of their own race. */
     else if (u.ualign.type == A_CHAOTIC && your_race(mtmp->data)) {
-        int oldalign = u.ualign.record;
+        int oldalign = UALIGNREC;
         adjalign(1);
-        if (u.ualign.record > oldalign)
+        if (UALIGNREC > oldalign)
             pline(msgc_aligngood, "You feel more chaotic.");
     }
     /* Lawful characters gain alignment for killing hostile chaotic demons. */
     else if (u.ualign.type == A_LAWFUL && is_demon(mtmp->data) &&
              mtmp->data->maligntyp < 0)
+        adjalign(1);
+    /* Knights gain alignment for killing hostile (adult) dragons. */
+    else if (Role_if(PM_KNIGHT) && (monsndx(mtmp->data) >= PM_GRAY_DRAGON) &&
+             (monsndx(mtmp->data) <= PM_ANCIENT_YELLOW_DRAGON))
+        adjalign(1);
+    /* Priests gain alignment for killing undead monsters. */
+    else if (Role_if(PM_PRIEST) && is_undead(mtmp->data))
         adjalign(1);
 }
 
@@ -2330,7 +2341,7 @@ mnexto(struct monst *mtmp)
 
     if (!enexto(&mm, level, u.ux, u.uy, mtmp->data))
         return;
-    rloc_to(mtmp, mm.x, mm.y);
+    rloc_to(mtmp, mm.x, mm.y, level);
     return;
 }
 
@@ -2352,7 +2363,7 @@ mnearto(struct monst * mtmp, xchar x, xchar y, boolean move_other)
 
     if (move_other && (othermon = m_at(level, x, y))) {
         if (othermon->wormno)
-            remove_worm(othermon);
+            remove_worm(othermon, level);
         else
             remove_monster(level, x, y);
     }
@@ -2370,7 +2381,7 @@ mnearto(struct monst * mtmp, xchar x, xchar y, boolean move_other)
         newy = mm.y;
     }
 
-    rloc_to(mtmp, newx, newy);
+    rloc_to(mtmp, newx, newy, level);
 
     if (move_other && othermon) {
         othermon->mx = COLNO;
@@ -3117,48 +3128,48 @@ int egg_type_from_parent(int mnum,      /* parent monster; caller must handle
     /* All egg-laying dragons of a given color lay the same kind of egg,
        regardless of the parent dragon's age: */
     case PM_YOUNG_GRAY_DRAGON:
-    case PM_GRAY_ELDER_DRAGON:
-    case PM_GREAT_GRAY_DRAGON:
+    case PM_ELDER_GRAY_DRAGON:
+    case PM_ANCIENT_GRAY_DRAGON:
         mnum = PM_GRAY_DRAGON;
         break;
     case PM_YOUNG_SILVER_DRAGON:
-    case PM_SILVER_ELDER_DRAGON:
-    case PM_GREAT_SILVER_DRAGON:
+    case PM_ELDER_SILVER_DRAGON:
+    case PM_ANCIENT_SILVER_DRAGON:
         mnum = PM_SILVER_DRAGON;
         break;
     case PM_YOUNG_RED_DRAGON:
-    case PM_RED_ELDER_DRAGON:
-    case PM_GREAT_RED_DRAGON:
+    case PM_ELDER_RED_DRAGON:
+    case PM_ANCIENT_RED_DRAGON:
         mnum = PM_RED_DRAGON;
         break;
     case PM_YOUNG_WHITE_DRAGON:
-    case PM_WHITE_ELDER_DRAGON:
-    case PM_GREAT_WHITE_DRAGON:
+    case PM_ELDER_WHITE_DRAGON:
+    case PM_ANCIENT_WHITE_DRAGON:
         mnum = PM_WHITE_DRAGON;
         break;
     case PM_YOUNG_ORANGE_DRAGON:
-    case PM_ORANGE_ELDER_DRAGON:
-    case PM_GREAT_ORANGE_DRAGON:
+    case PM_ELDER_ORANGE_DRAGON:
+    case PM_ANCIENT_ORANGE_DRAGON:
         mnum = PM_ORANGE_DRAGON;
         break;
     case PM_YOUNG_BLACK_DRAGON:
-    case PM_BLACK_ELDER_DRAGON:
-    case PM_GREAT_BLACK_DRAGON:
+    case PM_ELDER_BLACK_DRAGON:
+    case PM_ANCIENT_BLACK_DRAGON:
         mnum = PM_BLACK_DRAGON;
         break;
     case PM_YOUNG_BLUE_DRAGON:
-    case PM_BLUE_ELDER_DRAGON:
-    case PM_GREAT_BLUE_DRAGON:
+    case PM_ELDER_BLUE_DRAGON:
+    case PM_ANCIENT_BLUE_DRAGON:
         mnum = PM_BLUE_DRAGON;
         break;
     case PM_YOUNG_GREEN_DRAGON:
-    case PM_GREEN_ELDER_DRAGON:
-    case PM_GREAT_GREEN_DRAGON:
+    case PM_ELDER_GREEN_DRAGON:
+    case PM_ANCIENT_GREEN_DRAGON:
         mnum = PM_GREEN_DRAGON;
         break;
     case PM_YOUNG_YELLOW_DRAGON:
-    case PM_YELLOW_ELDER_DRAGON:
-    case PM_GREAT_YELLOW_DRAGON:
+    case PM_ELDER_YELLOW_DRAGON:
+    case PM_ANCIENT_YELLOW_DRAGON:
         mnum = PM_YELLOW_DRAGON;
         break;
     }

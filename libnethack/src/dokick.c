@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Izchak Miller, Mike Stephenson, Steve Linhart, 1989. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -251,7 +251,7 @@ doit:
             passive(mon, FALSE, 1, AT_KICK);
             return ac_somethingelse;
         } else {
-            rloc_to(mon, bypos.x, bypos.y);
+            rloc_to(mon, bypos.x, bypos.y, level);
             if (mon->mx != x || mon->my != y) {
                 reveal_monster_at(x, y, TRUE);
                 /* TODO: This should probably use locomotion(). */
@@ -652,6 +652,8 @@ kickstr(struct obj *kickobj)
         what = "a wall";
     else if (IS_ROCK(maploc->typ))
         what = "a rock";
+    else if (IS_BENCH(maploc->typ))
+        what = "a bench";
     else if (IS_THRONE(maploc->typ))
         what = "a throne";
     else if (IS_FOUNTAIN(maploc->typ))
@@ -862,7 +864,7 @@ dokick(const struct nh_cmd_arg *arg)
 
     if (!IS_DOOR(maploc->typ)) {
         if (maploc->typ == SDOOR) {
-            if (!Levitation && rn2(30) < avrg_attrib) {
+            if (!Levitation && rn2(15) < avrg_attrib) {
                 cvt_sdoor_to_door(maploc, &u.uz);       /* ->typ = DOOR */
                 pline(msgc_youdiscover, "Crash!  %s a secret door!",
                       /* don't "kick open" when it's locked unless it also
@@ -884,11 +886,16 @@ dokick(const struct nh_cmd_arg *arg)
                     maploc->doormask == D_NODOOR)
                     unblock_point(x, y);        /* vision */
                 return 1;
-            } else
-                goto ouch;
+            } else {
+                /* Don't reveal whether secret door or secret corridor. */
+                pline(msgc_youdiscover, canhear() ?
+                      "The wall responds with a hollow thump." :
+                      "The wall gives a little there.  Could it be hollow?");
+                return 1;
+            }
         }
         if (maploc->typ == SCORR) {
-            if (!Levitation && rn2(30) < avrg_attrib) {
+            if (!Levitation && rn2(20) < avrg_attrib) {
                 pline(msgc_youdiscover,
                       "Crash!  You kick open a secret passage!");
                 exercise(A_DEX, TRUE);
@@ -899,8 +906,13 @@ dokick(const struct nh_cmd_arg *arg)
                     newsym(x, y);
                 unblock_point(x, y);    /* vision */
                 return 1;
-            } else
-                goto ouch;
+            } else {
+                /* Don't reveal whether secret door or secret corridor. */
+                pline(msgc_youdiscover, canhear() ?
+                      "The wall responds with a hollow thump." :
+                      "The wall gives a little there.  Could it be hollow?");
+                return 1;
+            }
         }
         if (IS_THRONE(maploc->typ)) {
             int i;

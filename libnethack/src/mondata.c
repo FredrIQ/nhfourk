@@ -260,20 +260,30 @@ can_track(const struct permonst * ptr)
 
 /* creature will slide out of armor */
 boolean
-sliparm(const struct permonst * ptr)
+sliparm(const struct permonst * ptr, const struct objclass *oc)
 {
     return ((boolean)
-            (is_whirly(ptr) || ptr->msize <= MZ_SMALL || noncorporeal(ptr)));
+            (is_whirly(ptr) || ptr->msize <= oc->a_minsize ||
+             noncorporeal(ptr)));
 }
 
 /* creature will break out of armor */
 boolean
-breakarm(const struct permonst * ptr)
+breakarm(const struct permonst * ptr, const struct objclass *oc)
 {
-    return ((bigmonst(ptr) || (ptr->msize > MZ_SMALL && !humanoid(ptr)) ||
-             /* special cases of humanoids that cannot wear body armor */
-             ptr == &mons[PM_MARILITH] || ptr == &mons[PM_WINGED_GARGOYLE])
-            && !sliparm(ptr));
+    if (!ptr) {
+        impossible("breakarm called with invalid permonst pointer");
+        return FALSE;
+    }
+    if (!oc) {
+        impossible("breakarm called with invalid object class pointer");
+        return FALSE;
+    }
+    return ((ptr->msize > oc->a_maxsize) ||
+            (ptr->msize > MZ_SMALL && !humanoid(ptr)) ||
+            /* special cases of humanoids that cannot wear body armor */
+            (ptr == &mons[PM_MARILITH] || ptr == &mons[PM_WINGED_GARGOYLE]))
+        && !sliparm(ptr, oc);
 }
 
 /* creature sticks other creatures it hits */
@@ -441,8 +451,8 @@ name_to_mon(const char *in_str)
             short pm_val;
         } names[] = {
             /* Alternate spellings */
-            { "great grey dragon", PM_GREAT_GRAY_DRAGON },
-            { "grey elder dragon", PM_GRAY_ELDER_DRAGON },
+            { "ancient grey dragon", PM_ANCIENT_GRAY_DRAGON },
+            { "elder grey dragon", PM_ELDER_GRAY_DRAGON },
             { "grey dragon", PM_GRAY_DRAGON },
             { "young grey dragon", PM_YOUNG_GRAY_DRAGON },
             { "baby grey dragon", PM_BABY_GRAY_DRAGON },
@@ -591,24 +601,24 @@ static const short grownups[][2] = {
     {PM_YOUNG_BLUE_DRAGON, PM_BLUE_DRAGON},
     {PM_YOUNG_GREEN_DRAGON, PM_GREEN_DRAGON},
     {PM_YOUNG_YELLOW_DRAGON, PM_YELLOW_DRAGON},
-    {PM_GRAY_DRAGON, PM_GRAY_ELDER_DRAGON},
-    {PM_SILVER_DRAGON, PM_SILVER_ELDER_DRAGON},
-    {PM_RED_DRAGON, PM_RED_ELDER_DRAGON},
-    {PM_WHITE_DRAGON, PM_WHITE_ELDER_DRAGON},
-    {PM_ORANGE_DRAGON, PM_ORANGE_ELDER_DRAGON},
-    {PM_BLACK_DRAGON, PM_BLACK_ELDER_DRAGON},
-    {PM_BLUE_DRAGON, PM_BLUE_ELDER_DRAGON},
-    {PM_GREEN_DRAGON, PM_GREEN_ELDER_DRAGON},
-    {PM_YELLOW_DRAGON, PM_YELLOW_ELDER_DRAGON},
-    {PM_GRAY_ELDER_DRAGON, PM_GREAT_GRAY_DRAGON},
-    {PM_SILVER_ELDER_DRAGON, PM_GREAT_SILVER_DRAGON},
-    {PM_RED_ELDER_DRAGON, PM_GREAT_RED_DRAGON},
-    {PM_WHITE_ELDER_DRAGON, PM_GREAT_WHITE_DRAGON},
-    {PM_ORANGE_ELDER_DRAGON, PM_GREAT_ORANGE_DRAGON},
-    {PM_BLACK_ELDER_DRAGON, PM_GREAT_BLACK_DRAGON},
-    {PM_BLUE_ELDER_DRAGON, PM_GREAT_BLUE_DRAGON},
-    {PM_GREEN_ELDER_DRAGON, PM_GREAT_GREEN_DRAGON},
-    {PM_YELLOW_ELDER_DRAGON, PM_GREAT_YELLOW_DRAGON},
+    {PM_GRAY_DRAGON, PM_ELDER_GRAY_DRAGON},
+    {PM_SILVER_DRAGON, PM_ELDER_SILVER_DRAGON},
+    {PM_RED_DRAGON, PM_ELDER_RED_DRAGON},
+    {PM_WHITE_DRAGON, PM_ELDER_WHITE_DRAGON},
+    {PM_ORANGE_DRAGON, PM_ELDER_ORANGE_DRAGON},
+    {PM_BLACK_DRAGON, PM_ELDER_BLACK_DRAGON},
+    {PM_BLUE_DRAGON, PM_ELDER_BLUE_DRAGON},
+    {PM_GREEN_DRAGON, PM_ELDER_GREEN_DRAGON},
+    {PM_YELLOW_DRAGON, PM_ELDER_YELLOW_DRAGON},
+    {PM_ELDER_GRAY_DRAGON, PM_ANCIENT_GRAY_DRAGON},
+    {PM_ELDER_SILVER_DRAGON, PM_ANCIENT_SILVER_DRAGON},
+    {PM_ELDER_RED_DRAGON, PM_ANCIENT_RED_DRAGON},
+    {PM_ELDER_WHITE_DRAGON, PM_ANCIENT_WHITE_DRAGON},
+    {PM_ELDER_ORANGE_DRAGON, PM_ANCIENT_ORANGE_DRAGON},
+    {PM_ELDER_BLACK_DRAGON, PM_ANCIENT_BLACK_DRAGON},
+    {PM_ELDER_BLUE_DRAGON, PM_ANCIENT_BLUE_DRAGON},
+    {PM_ELDER_GREEN_DRAGON, PM_ANCIENT_GREEN_DRAGON},
+    {PM_ELDER_YELLOW_DRAGON, PM_ANCIENT_YELLOW_DRAGON},
     {PM_RED_NAGA_HATCHLING, PM_RED_NAGA},
     {PM_BLACK_NAGA_HATCHLING, PM_BLACK_NAGA},
     {PM_GOLDEN_NAGA_HATCHLING, PM_GOLDEN_NAGA},

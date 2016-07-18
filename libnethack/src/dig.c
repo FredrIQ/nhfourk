@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -65,7 +65,7 @@ mkcavepos(xchar x, xchar y, int dist, boolean waslit, boolean rockit)
         if ((mtmp = m_at(level, x, y)) != 0)    /* make sure crucial monsters
                                                    survive */
             if (!passes_walls(mtmp->data))
-                rloc(mtmp, FALSE);
+                rloc(mtmp, FALSE, level);
     } else if (loc->typ == ROOM)
         return;
 
@@ -386,6 +386,8 @@ dig(void)
             }
             if (IS_TREE(loc->typ)) {
                 digtxt = "You cut down the tree.";
+                /* Note: we test for this exact string later, to decide if a
+                   tree was cut down for alignment-record purposes. */
                 loc->typ = ROOM;
                 /* Don't bother with a custom RNG for this: it would desync
                    between kicked fruits and cut-down fruits. (And if you think
@@ -434,8 +436,16 @@ dig(void)
             feel_location(dpx, dpy);
         else
             newsym(dpx, dpy);
-        if (digtxt)
+        if (digtxt) {
             pline(msgc_actionok, "%s", digtxt);      /* after newsym */
+            if (0 == strncmpi(digtxt, "You cut down the tree.",
+                               strlen("You cut down the tree."))) {
+                if (Race_if(PM_DWARF))
+                    adjalign(1);
+                else if (Race_if(PM_ELF))
+                    adjalign(-1);
+            }
+        }
         if (dmgtxt)
             pay_for_damage(dmgtxt, FALSE);
 
@@ -548,6 +558,7 @@ digactualhole(int x, int y, struct monst *madeby, int ttyp)
     /* these furniture checks were in dighole(), but wand breaking bypasses
        that routine and calls us directly */
     if (IS_FOUNTAIN(loc->typ)) {
+        break_conduct(conduct_fountains);
         dogushforth(FALSE);
         SET_FOUNTAIN_WARNED(x, y);      /* force dryup */
         dryup(x, y, madeby_u);
@@ -867,7 +878,7 @@ dig_up_grave(void)
     } else if (Role_if(PM_SAMURAI)) {
         adjalign(-sgn(u.ualign.type));
         pline(msgc_alignchaos, "You disturb the honorable dead!");
-    } else if ((u.ualign.type == A_LAWFUL) && (u.ualign.record > -10)) {
+    } else if ((u.ualign.type == A_LAWFUL) && (UALIGNREC > -10)) {
         adjalign(-sgn(u.ualign.type));
         pline(msgc_alignbad, "You have violated the sanctity of this grave!");
     }

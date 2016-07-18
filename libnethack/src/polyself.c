@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-11 */
+/* Last modified by Alex Smith, 2015-11-13 */
 /* Copyright (C) 1987, 1988, 1989 by Ken Arromdee */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -774,15 +774,16 @@ break_armor(boolean noisy)
 {
     struct obj *otmp;
 
-    if (breakarm(youmonst.data)) {
-        if ((otmp = uarm) != 0 && otmp != uskin()) {
+    if ( (((otmp = uarm) != 0)) && (otmp != uskin()) &&
+         (breakarm(youmonst.data, &objects[otmp->otyp]))) {
             if (noisy)
                 pline(msgc_itemloss, "You break out of your armor!");
             exercise(A_STR, FALSE);
             setequip(os_arm, NULL, em_silent);
             useup(otmp);
-        }
-        if ((otmp = uarmc) != 0) {
+    }
+    if ( (((otmp = uarmc) != 0)) &&
+         (breakarm(youmonst.data, &objects[otmp->otyp]))) {
             if (otmp->oartifact) {
                 if (noisy)
                     pline(msgc_statusbad, "Your %s falls off!",
@@ -796,22 +797,25 @@ break_armor(boolean noisy)
                 setequip(os_armc, NULL, em_silent);
                 useup(otmp);
             }
-        }
-        if (uarmu) {
+    }
+    if ( (((otmp = uarmu) != 0)) &&
+         (breakarm(youmonst.data, &objects[otmp->otyp]))) {
             if (noisy)
                 pline(msgc_itemloss, "Your shirt rips to shreds!");
             useup(uarmu);
-        }
-    } else if (sliparm(youmonst.data)) {
+    }
+    if ( (((otmp = uarm) != 0)) && (otmp != uskin()) &&
         /* uskin check is paranoia */
-        if (((otmp = uarm) != 0) && (otmp != uskin()) &&
-            (racial_exception(&youmonst, otmp) < 1)) {
+         (sliparm(youmonst.data, &objects[otmp->otyp]))) {
+        if (racial_exception(&youmonst, otmp) < 1)  {
             if (noisy)
                 pline(msgc_statusbad, "Your armor falls around you!");
             setequip(os_arm, NULL, em_silent);
             dropx(otmp);
         }
-        if ((otmp = uarmc) != 0) {
+    }
+    if ( (((otmp = uarmc) != 0)) &&
+         (sliparm(youmonst.data, &objects[otmp->otyp]))) {
             if (noisy) {
                 if (is_whirly(youmonst.data))
                     pline(msgc_statusbad, "Your %s falls, unsupported!",
@@ -822,8 +826,9 @@ break_armor(boolean noisy)
             }
             setequip(os_armc, NULL, em_silent);
             dropx(otmp);
-        }
-        if ((otmp = uarmu) != 0) {
+    }
+    if ( (((otmp = uarmu) != 0)) &&
+         (sliparm(youmonst.data, &objects[otmp->otyp]))) {
             if (noisy) {
                 if (is_whirly(youmonst.data))
                     pline(msgc_statusbad, "You seep right through your shirt!");
@@ -833,7 +838,6 @@ break_armor(boolean noisy)
             }
             setequip(os_armu, NULL, em_silent);
             dropx(otmp);
-        }
     }
     if (has_horns(youmonst.data)) {
         if ((otmp = uarmh) != 0) {
@@ -956,6 +960,14 @@ rehumanize(int how, const char *killer)
     if (Unchanging && u.mh < 1) {
         done(how, killer);
     }
+
+    /* If something that would be fatal lead to rehumanization instead, there's
+       less of a reason to force a --More--. So just forget about any pending
+       --More-- that we might be delaying. (The alternative would be to force a
+       --More-- and then reset turnstate - we have to reset it one way or the
+       other - but that would likely be obnoxious, because most players don't
+       consider rehumanization to be nearly as important as actual death). */
+    turnstate.force_more_pending_until_done = FALSE;
 
     if (emits_light(youmonst.data))
         del_light_source(level, LS_MONSTER, &youmonst);
@@ -1429,6 +1441,11 @@ mbodypart(struct monst *mon, int part)
         "light headed", "neck", "spine", "toe",
         "feathers", "blood", "lung", "bill", "stomach", "plumage",
         "limbs", "skin", "body"
+    }, *const gryphon_parts[] = { "foreleg", "eye", "face", "talon",
+        "talon", "hind leg", "claw", "clawed", "head", "hind leg",
+        "light headed", "ruff", "spine", "hind claw", "feathers",
+        "blood", "lung", "beak", "stomach", "hide",
+        "limbs", "hide", "body"
     }, *const horse_parts[] =
         { "foreleg", "eye", "face", "forehoof", "hoof tip",
         "rear hoof", "forehoof", "hooved", "head", "rear leg",
@@ -1475,7 +1492,7 @@ mbodypart(struct monst *mon, int part)
     /* claw attacks are overloaded in mons[]; most humanoids with such attacks
        should still reference hands rather than claws */
     static const char not_claws[] = {
-        S_HUMAN, S_MUMMY, S_ZOMBIE, S_ANGEL,
+        S_HUMAN, S_QUENDI, S_MUMMY, S_ZOMBIE, S_ANGEL,
         S_NYMPH, S_HUMANOID, S_VAMPIRE,
         S_ORC, S_GIANT, /* quest nemeses */
         '\0'    /* string terminator; assert( S_xxx != 0 ); */
@@ -1516,6 +1533,12 @@ mbodypart(struct monst *mon, int part)
         (part == ARM || part == FINGER || part == FINGERTIP || part == HAND ||
          part == HANDED || part == LIMBS))
         return humanoid_parts[part];
+    if ((mptr)->mlet == S_JABBERWOCK && !((mptr) == &mons[PM_JABBERWOCK]))
+        return gryphon_parts[part];
+    if ((mptr) == &mons[PM_JABBERWOCK] && part == HAIR)
+        return "scales"; /* NOT feathers */
+    if ((mptr) == &mons[PM_JABBERWOCK] && part == NOSE)
+        return "gaping maw"; /* NOT beak */
     if (is_bird(mptr))
         return bird_parts[part];
     if (has_beak(mptr) && part == NOSE) /* MOUTH is not a part, oddly */
@@ -1523,7 +1546,8 @@ mbodypart(struct monst *mon, int part)
     if (mptr->mlet == S_CENTAUR || mptr->mlet == S_UNICORN ||
         (mptr == &mons[PM_ROTHE] && part != HAIR))
         return horse_parts[part];
-    if (mptr->mlet == S_LIGHT) {
+    if ((mptr == &mons[PM_YELLOW_LIGHT]) ||
+        (mptr == &mons[PM_BLACK_LIGHT])) {
         if (part == HANDED)
             return "rayed";
         else if (part == ARM || part == FINGER || part == FINGERTIP ||

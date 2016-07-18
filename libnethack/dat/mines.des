@@ -630,6 +630,7 @@ MONSTER:'Y',"monkey",random
 MONSTER:'Y',"monkey",random
 MONSTER:'n',random,random
 DOOR: false, closed, south, random
+DOOR: true, locked, east, random
 
 SUBROOM: "ordinary", random, (14,2), (4,2), "town"
 DOOR: false, closed, south, 0
@@ -669,7 +670,8 @@ DOOR: false, closed, north, random
 
 SUBROOM: "ordinary", random, (22,11), (2,2), "town"
 DOOR: false, closed, south, random
-SINK: (00,00)
+DOOR: true, locked, north, random
+SINK: (01,00)
 
 SUBROOM: "food shop", lit, (25,11), (3,2), "town"
 CHANCE: 50
@@ -679,7 +681,7 @@ SUBROOM: "tool shop", lit, (25,2), (3,3), "town"
 CHANCE: 30
 DOOR: false, closed, west, random
 
-SUBROOM: "temple", lit, (24,6), (4,4), "town"
+SUBROOM: "temple", lit, (24,8), (4,2), "town"
 DOOR: false, closed, west, random
 ALTAR:(02,01),align[0],shrine
 MONSTER: 'G', "gnomish wizard", random
@@ -1108,7 +1110,7 @@ MAP
 9                                                                        .}}{
 ENDMAP
 
-RANDOM_PLACES:(0,18),(0,12),(2,18),(12,14),(20,12),(16,16),(22,14),(72,18),(52,14),(44,14)
+RANDOM_PLACES:(0,18),(0,12),(2,18),(12,14),(20,12),(16,16),(72,18),(52,14),(44,14)
 REGION:(0,0,75,19),lit,"ordinary"
 NON_DIGGABLE:(0,0,75,19)
 STAIR:(1,9),up
@@ -1210,5 +1212,14 @@ DOOR:locked,(62,6)
 DOOR:closed,(30,13)
 DOOR:closed,(37,13)
 DOOR:closed,(48,13)
+# Wake the shamans if anyone tries to take the figurine:
+TRAP:"board",(69,04)
+TRAP:"board",(69,05)
+TRAP:"board",(69,06)
+TRAP:"board",(70,04)
+TRAP:"board",(70,06)
+TRAP:"board",(71,04)
+TRAP:"board",(71,05)
+TRAP:"board",(71,06)
 
 # end mines.des

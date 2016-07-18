@@ -6,8 +6,6 @@
 #include "hack.h"
 #include "alignrec.h"
 
-extern const int monstr[];
-
 /* monster mage spells */
 #define MGC_PSI_BOLT    0
 #define MGC_CURE_SELF   1
@@ -426,7 +424,7 @@ cast_wizard_spell(struct monst *mtmp, int dmg, int spellnum)
     }
     case MGC_RND_ALIGN:
         if (mtmp->iswiz) {
-            if (u.ualign.record >= PIOUS)
+            if (UALIGNREC >= PIOUS)
                 verbalize(msgc_playerimmune, /* or msgc_npcvoice ? */
                           "Bah! Pious are thou? What shall it avail thee?");
             else {
@@ -1309,7 +1307,7 @@ ucast_wizard_spell(struct monst *mattk, struct monst *mtmp, int dmg,
                         do {
                             makeindex = pick_nasty();
                         } while (attacktype(&mons[makeindex], AT_MAGC) &&
-                                 monstr[makeindex] >= monstr[u.umonnum]);
+                                 MONSTR(makeindex) >= MONSTR(u.umonnum));
                         if (yours &&
                             !enexto(&bypos, level, u.ux, u.uy,
                                     &mons[makeindex]))
