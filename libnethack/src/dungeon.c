@@ -718,7 +718,7 @@ static struct level_map {
     {"asmodeus", &asmodeus_level},
     {"astral", &astral_level},
     {"baalz", &baalzebub_level},
-    {"bigroom", &bigroom_level},
+    {"bigrm", &bigroom_level},
     {"castle", &stronghold_level},
     {"earth", &earth_level},
     {"fakewiz1", &portal_level},
@@ -729,7 +729,7 @@ static struct level_map {
     {"oracle", &oracle_level},
     {"orcus", &orcus_level},
     {"rogue", &rogue_level},
-    {"sanctum", &sanctum_level},
+    {"sanctu", &sanctum_level},
     {"valley", &valley_level},
     {"water", &water_level},
     {"wizard1", &wiz1_level},
@@ -2091,6 +2091,9 @@ static const char *const shopnames[] = {
     /* WANDSHOP */ "a wand shop",
     /* TOOLSHOP */ "a hardware shop",
     /* BOOKSHOP */ "a bookstore",
+    /* GIFTSHOP */ "a gift shop",
+    /* MUSICSHOP */ "a music store",
+    /* RARESHOP */ "a rare goods shop",
     /* CANDLESHOP */ "a lighting shop"
 };
 

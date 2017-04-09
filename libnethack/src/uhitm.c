@@ -401,10 +401,9 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
     boolean hittxt = FALSE, destroyed = FALSE, already_killed = FALSE;
     boolean get_dmg_bonus = TRUE;
     boolean ispoisoned = FALSE, needpoismsg = FALSE, poiskilled = FALSE;
-    boolean silvermsg = FALSE, silverobj = FALSE;
+    boolean silvermsg = FALSE, silverobj = FALSE, silvermaterial = SILVER;
     boolean valid_weapon_attack = FALSE;
     boolean unarmed = !uwep && (!uarm || uskin()) && !uarms;
-    boolean not_melee_weapon = FALSE;
     int jousting = 0;
     int wtype;
     struct obj *monwep;
@@ -430,13 +429,16 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
         /* So do silver rings.  Note: rings are worn under gloves, so you don't
            get both bonuses. */
         if (!uarmg) {
-            if (uleft && objects[uleft->otyp].oc_material == SILVER)
+            int hated_material = hates_material(mdat, SILVER) ? SILVER :
+                hates_material(mdat, IRON) ? IRON : 0;
+            if (uleft && objects[uleft->otyp].oc_material == hated_material)
                 barehand_silver_rings++;
-            if (uright && objects[uright->otyp].oc_material == SILVER)
+            if (uright && objects[uright->otyp].oc_material == hated_material)
                 barehand_silver_rings++;
-            if (barehand_silver_rings && hates_silver(mdat)) {
-                tmp += rnd(20);
+            if (barehand_silver_rings && hates_material(mdat, hated_material)) {
+                tmp += rnd(material_damage(hated_material));
                 silvermsg = TRUE;
+                silvermaterial = hated_material;
             }
         }
     } else {
@@ -454,7 +456,6 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                    /* or throw a missile without the proper bow... */
                    (is_ammo(obj) && !ammo_and_launcher(obj, uwep))) {
                 /* then do only 1-2 points of damage */
-                not_melee_weapon = TRUE;
                 if (mdat == &mons[PM_SHADE] && !shade_glare(obj))
                     tmp = 0;
                 else
@@ -463,11 +464,11 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                 /* need to duplicate this check for silver arrows: they aren't
                    caught below as they're weapons, and aren't caught in dmgval
                    as they aren't melee weapons. */
-                if (objects[obj->otyp].oc_material == SILVER &&
-                    hates_silver(mdat)) {
+                if (hates_material(mdat, objects[obj->otyp].oc_material)) {
                     silvermsg = TRUE;
                     silverobj = TRUE;
-                    tmp += rnd(20);
+                    silvermaterial = objects[obj->otyp].oc_material;
+                    tmp += rnd(material_damage(silvermaterial));
                 }
                 if (!thrown && obj == uwep && obj->otyp == BOOMERANG &&
                     rnl(4) == 4 - 1) {
@@ -510,7 +511,8 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                     if ((wtype = uwep_skill_type()) != P_NONE)
                         tmp += rnd(1 + (3 * P_SKILL(wtype) * P_SKILL(wtype) / 2));
                     hittxt = TRUE;
-                } else if (dieroll == 2 && obj == uwep &&
+                } else if (dieroll == 2 &&
+                           (obj == uwep || (obj == uswapwep && u.twoweap)) &&
                            obj->oclass == WEAPON_CLASS &&
                            (bimanual(obj) ||
                             (Role_if(PM_SAMURAI) && obj->otyp == KATANA &&
@@ -551,10 +553,10 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                         return TRUE;
                     hittxt = TRUE;
                 }
-                if (objects[obj->otyp].oc_material == SILVER &&
-                    hates_silver(mdat)) {
+                if (hates_material(mdat, objects[obj->otyp].oc_material)) {
                     silvermsg = TRUE;
                     silverobj = TRUE;
+                    silvermaterial = objects[obj->otyp].oc_material;
                 }
                 if (u.usteed && !thrown && tmp > 0 &&
                     obj->otyp == LANCE && mon != u.ustuck) {
@@ -632,14 +634,18 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                         !DEADMONSTER(ctarg) &&
                         (m_mx(ctarg) == posn1.x) && (m_my(ctarg) == posn1.y) &&
                         !ctarg->mtame && !ctarg->mpeaceful) {
-                        hmon(ctarg, obj, thrown);
+                        boolean alive = hmon(ctarg, obj, thrown);
+                        /* TODO: maybe don't trigger gaze passives? */
+                        passive(ctarg, TRUE, alive, AT_WEAP);
                     }
                     if (isok(posn2.x, posn2.y) &&
                         (ctarg = m_at(level, posn2.x, posn2.y)) &&
                         !DEADMONSTER(ctarg) &&
                         (m_mx(ctarg) == posn2.x) && (m_my(ctarg) == posn2.y) &&
                         !ctarg->mtame && !ctarg->mpeaceful) {
-                        hmon(ctarg, obj, thrown);
+                        boolean alive = hmon(ctarg, obj, thrown);
+                        /* TODO: maybe don't trigger gaze passives? */
+                        passive(ctarg, TRUE, alive, AT_WEAP);
                     }
                     if (P_SKILL(P_AXE) >= P_MASTER) {
                         if (isok(posn3.x, posn3.y) &&
@@ -648,7 +654,9 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                             (m_mx(ctarg) == posn3.x) &&
                             (m_my(ctarg) == posn3.y) &&
                             !ctarg->mtame && !ctarg->mpeaceful) {
-                            hmon(ctarg, obj, thrown);
+                            boolean alive = hmon(ctarg, obj, thrown);
+                            /* TODO: maybe don't trigger gaze passives? */
+                            passive(ctarg, TRUE, alive, AT_WEAP);
                         }
                         if (isok(posn4.x, posn4.y) &&
                             (ctarg = m_at(level, posn4.x, posn4.y)) &&
@@ -656,7 +664,9 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                             (m_mx(ctarg) == posn4.x) &&
                             (m_my(ctarg) == posn4.y) &&
                             !ctarg->mtame && !ctarg->mpeaceful) {
-                            hmon(ctarg, obj, thrown);
+                            boolean alive = hmon(ctarg, obj, thrown);
+                            /* TODO: maybe don't trigger gaze passives? */
+                            passive(ctarg, TRUE, alive, AT_WEAP);
                         }
                     }
                     obj->axeinuse = 0;
@@ -916,11 +926,11 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                      * Things like silver wands can arrive here so
                      * so we need another silver check.
                      */
-                    if (objects[obj->otyp].oc_material == SILVER &&
-                        hates_silver(mdat)) {
-                        tmp += rnd(20);
+                    if (hates_material(mdat, objects[obj->otyp].oc_material)) {
                         silvermsg = TRUE;
                         silverobj = TRUE;
+                        silvermaterial = objects[obj->otyp].oc_material;
+                        tmp += rnd(material_damage(silvermaterial));
                     }
                 }
             }
@@ -1062,7 +1072,8 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
         && obj && obj == uwep && objects[obj->otyp].oc_material == IRON &&
         mon->mhp >= 2 && !thrown && !mon->mcan
         /* && !destroyed -- guaranteed by mhp >= 2 */ ) {
-        if ((mon->mhp > 60) && !(mdat == &mons[PM_BLOOD_PUDDING])) {
+        if ((mon->mhpmax > (6 * mon->m_lev)) &&
+            !(mdat == &mons[PM_BLOOD_PUDDING])) {
             coord mm;
             struct monst *bpud;
             mm.x = mon->mx; mm.y = mon->my;
@@ -1089,9 +1100,11 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
         } else {
             struct monst *newpudding = clone_mon(mon, 0, 0);
             if (newpudding) {
+                pline(msgc_debug, "mphmax %d, m_lev %d, 6x=%d",
+                      mon->mhpmax, mon->m_lev, 6 * mon->m_lev);
                 pline(msgc_consequence, "%s divides as you hit it!", Monnam(mon));
-                newpudding->mhpmax = newpudding->mhpmax * 4 / 3;
-                mon->mhpmax        = mon->mhpmax        * 3 / 4;
+                newpudding->mhpmax = newpudding->mhpmax * 5 / 3;
+                mon->mhpmax        = mon->mhpmax        * 3 / 5;
                 if (mon->mhp > mon->mhpmax) {
                     mon->mhp = mon->mhpmax;
                     newpudding->mhp = newpudding->mhpmax;
@@ -1110,8 +1123,7 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
             pline(combat_msgc(&youmonst, mon, cr_hit), "You hit it.");
         else
             pline(combat_msgc(&youmonst, mon, cr_hit), "You %s %s%s",
-                  (!obj ? barehitmsg(&youmonst) : 
-                   not_melee_weapon ? "hit" : weaphitmsg(obj, &youmonst)),
+                  (!obj ? barehitmsg(&youmonst) : weaphitmsg(obj, &youmonst)),
                   mon_nam(mon), canseemon(mon) ? exclam(tmp) : ".");
     }
 
@@ -1126,10 +1138,13 @@ hmon_hitmon(struct monst *mon, struct obj *obj, int thrown)
                 fmt = "Your silver rings sear %s!";
             else if (silverobj && *saved_oname) {
                 fmt = msgprintf("Your %s%s %s %%s!",
-                                strstri(saved_oname, "silver") ? "" : "silver ",
+                                strstri(saved_oname,
+                                        material_name(silvermaterial)) ? "" :
+                                msgprintf("%s ", material_name(silvermaterial)),
                                 saved_oname, vtense(saved_oname, "sear"));
             } else
-                fmt = "The silver sears %s!";
+                fmt = msgprintf("The %s sears %%s!",
+                                material_name(silvermaterial));
         } else {
             whom = msgupcasefirst(whom);       /* "it" -> "It" */
             fmt = "%s is seared!";

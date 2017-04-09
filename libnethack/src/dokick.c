@@ -242,7 +242,7 @@ doit:
         canmove = FALSE;
     if (!rn2(clumsy ? 3 : 4) && (clumsy || !bigmonst(mon->data)) && mon->mcansee
         && !mon->mtrapped && !thick_skinned(mon->data) &&
-        mon->data->mlet != S_EEL && haseyes(mon->data) && mon->mcanmove &&
+        mon->data->mlet != S_KRAKEN && haseyes(mon->data) && mon->mcanmove &&
         !mon->mstun && !mon->mconf && !mon->msleeping &&
         mon->data->mmove >= 12) {
         if (!canmove || (!nohands(mon->data) && !rn2(martial()? 5 : 3))) {
@@ -323,10 +323,10 @@ ghitm(struct monst * mtmp, struct obj * gold)
                     pline(msgc_actionok, "You have %ld %s in credit.",
                           (long)ESHK(mtmp)->credit,
                           currency(ESHK(mtmp)->credit));
-                } else
+                } else if (!Deaf)
                     verbalize(msgc_badidea, "Thanks, scum!");
             }
-        } else if (mtmp->ispriest) {
+        } else if (mtmp->ispriest && !Deaf) {
             if (mtmp->mpeaceful)
                 verbalize(msgc_actionok, "Thank you for your contribution.");
             else
@@ -351,9 +351,9 @@ ghitm(struct monst * mtmp, struct obj * gold)
                         msethostility(mtmp, FALSE, FALSE);
                 }
             }
-            if (mtmp->mpeaceful)
+            if (mtmp->mpeaceful && !Deaf)
                 verbalize(msgc_actionok, "That should do.  Now beat it!");
-            else
+            else if (!Deaf)
                 verbalize(msgc_failrandom, "That's not enough, coward!");
         }
 
@@ -989,7 +989,8 @@ dokick(const struct nh_cmd_arg *arg)
             if (!rn2(3))
                 goto ouch;
             /* make metal boots rust */
-            if (uarmf && rn2(3))
+            if (uarmf && rn2(3) &&
+                !u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE))
                 if (!water_damage(uarmf, "metal boots", TRUE)) {
                     pline(msgc_badidea, "Your boots get wet.");
                     /* could cause short-lived fumbling here */
@@ -1073,8 +1074,12 @@ dokick(const struct nh_cmd_arg *arg)
                 if (canhear())
                     pline(msgc_failrandom,
                           "Klunk!  The pipes vibrate noisily.");
+                else if (!Blind)
+                    pline(msgc_failrandom, "The pipes vibrate visibly.");
                 else
-                    pline(msgc_failrandom, "Klunk!");
+                    pline(msgc_failrandom,
+                          "Your %s throbs unpleasantly for a moment.",
+                          body_part(FOOT));
                 exercise(A_DEX, TRUE);
                 return 1;
             } else if (!(maploc->looted & S_LPUDDING) && pudding_available) {
@@ -1223,11 +1228,7 @@ dokick(const struct nh_cmd_arg *arg)
                 if ((mtmp->data == &mons[PM_WATCHMAN] ||
                      mtmp->data == &mons[PM_WATCH_CAPTAIN]) &&
                     couldsee(mtmp->mx, mtmp->my) && mtmp->mpeaceful) {
-                    if (canspotmon(mtmp))
-                        pline(msgc_npcvoice, "%s yells:", Amonnam(mtmp));
-                    else
-                        You_hear(msgc_npcvoice, "someone yell:");
-                    verbalize(msgc_npcanger,
+                    mon_yells(mtmp, msgc_npcanger,
                               "Halt, thief!  You're under arrest!");
                     angry_guards(FALSE);
                     break;
@@ -1250,11 +1251,11 @@ dokick(const struct nh_cmd_arg *arg)
                     else
                         You_hear(msgc_npcvoice, "someone yell:");
                     if (level->locations[x][y].looted & D_WARNED) {
-                        verbalize(msgc_npcanger,
+                        mon_yells(mtmp, msgc_npcanger,
                                   "Halt, vandal!  You're under arrest!");
                         angry_guards(FALSE);
                     } else {
-                        verbalize(msgc_levelwarning,
+                        mon_yells(mtmp, msgc_levelwarning,
                                   "Hey, stop damaging that door!");
                         level->locations[x][y].looted |= D_WARNED;
                     }

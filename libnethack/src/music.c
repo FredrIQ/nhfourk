@@ -431,6 +431,7 @@ do_improvisation(struct obj *instr, const struct nh_cmd_arg *arg)
         }       /* else FALLTHRU */
     case LEATHER_DRUM: /* Awaken monsters */
         pline(msgc_actionok, "You beat a deafening row!");
+        incr_itimeout(&HDeaf, rn1(20,30));
         awaken_monsters(u.ulevel * 40);
         break;
     default:
@@ -502,6 +503,7 @@ do_play_instrument(struct obj *instr, const struct nh_cmd_arg *arg)
                             if (find_drawbridge(&x, &y)) {
                                 /* tune now fully known */
                                 u.uevent.uheard_tune = 2;
+                                achievement(achieve_passtune);
                                 if (level->locations[x][y].typ ==
                                     DRAWBRIDGE_DOWN)
                                     close_drawbridge(x, y);

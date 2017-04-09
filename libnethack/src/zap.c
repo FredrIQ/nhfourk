@@ -126,6 +126,10 @@ bhitm(struct monst *user, struct monst *mtmp, struct obj *otmp)
     if (Engulfed && mtmp == u.ustuck)
         reveal_invis = FALSE;
 
+    if (mtmp == &youmonst && u.uinvulnerable) {
+        pline(combat_msgc(user, mtmp, cr_miss), "You're unaffected.");
+        return 0;
+    }
     if (mtmp == &youmonst)
         action_interrupted();
 
@@ -1546,8 +1550,17 @@ poly_obj(struct obj *obj, int id)
     case SPBOOK_CLASS:
         while (otmp->otyp == SPE_POLYMORPH)
             otmp->otyp = rnd_class(SPE_DIG, SPE_BLANK_PAPER, rng);
-        /* reduce spellbook abuse */
-        otmp->spestudied = obj->spestudied + 1;
+        /* reduce spellbook abuse; non-blank books degrade */
+        if (otmp->otyp != SPE_BLANK_PAPER) {
+            otmp->spestudied = obj->spestudied + 1;
+            if (otmp->spestudied > MAX_SPELL_STUDY) {
+                otmp->otyp = SPE_BLANK_PAPER;
+                /* writing a new book over it will yield an unstudied one;
+                   re-polymorphing this one as-is may or may not get something
+                   non-blank */
+                otmp->spestudied = rn2(otmp->spestudied);
+            }
+        }
         break;
 
     case GEM_CLASS:
@@ -3894,6 +3907,7 @@ buzz(int type, int nd, xchar sx, xchar sy, int dx, int dy, int raylevel)
 /* note: worn amulet of life saving must be preserved in order to operate */
 #define oresist_disintegration(obj) \
             (objects[obj->otyp].oc_oprop == DISINT_RES || \
+             objects[obj->otyp].oc_oprop2 == DISINT_RES || \
              obj_resists(obj, 5, 50) || is_quest_artifact(obj) || \
              obj == m_amulet)
 
@@ -4011,8 +4025,12 @@ buzz(int type, int nd, xchar sx, xchar sy, int dx, int dy, int raylevel)
             }
             bounce = 0;
             range--;
-            if (range && isok(lsx, lsy) && cansee(lsx, lsy))
-                pline(msgc_consequence, "%s bounces!", The(fltxt));
+            if (range && isok(lsx, lsy) && cansee(lsx, lsy)) {
+                pline(msgc_consequence, "%s %s!", The(fltxt),
+                      Is_airlevel(&u.uz) ? "vanishes into thin air" :
+                      "bounces");
+                if (Is_airlevel(&u.uz)) goto get_out_buzz;
+            }
             if (!dx || !dy || !rn2(20)) {
                 dx = -dx;
                 dy = -dy;
@@ -4062,6 +4080,7 @@ buzz(int type, int nd, xchar sx, xchar sy, int dx, int dy, int raylevel)
             chain_explode(sx, sy, type, dice(nd, 6),
                           WAND_CLASS, expltype, NULL, raylevel, rnd(5));
     }
+get_out_buzz:
     if (shopdamage)
         pay_for_damage(abstype == ZT_FIRE ? "burn away" : abstype ==
                        ZT_COLD ? "shatter" : abstype ==
@@ -4575,6 +4594,8 @@ destroy_item(int osym, int dmgtyp)
             continue;   /* don't destroy artifacts */
         if (obj->in_use && obj->quan == 1)
             continue;   /* not available */
+        if (obj->oerodeproof)
+            continue;   /* this one cannot be damaged that way */
         xresist = skip = 0;
         dmg = dindx = 0;
         quan = 0L;

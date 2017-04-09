@@ -63,8 +63,27 @@ static const struct nh_listitem mode_list[] = {
     {MODE_EXPLORE, "explore"},
     {MODE_WIZARD, "debug"}
 };
-static const struct nh_enum_option mode_spec =
-    { mode_list, listlen(mode_list) };
+static const struct nh_enum_option mode_spec = {
+    mode_list, listlen(mode_list)
+};
+
+static const struct nh_listitem mode_list_nochallenge[] = {
+    {MODE_NORMAL, "normal"},
+    {MODE_EXPLORE, "explore"},
+    {MODE_WIZARD, "debug"}
+};
+static const struct nh_enum_option mode_spec_nochallenge = {
+    mode_list_nochallenge, listlen(mode_list_nochallenge)
+};
+
+static const struct nh_listitem bones_option_list[] = {
+    {bones_disabled, "disabled"},
+    {bones_normal,   "normal levels only"},
+    {bones_anywhere, "fully enabled"}
+};
+static const struct nh_enum_option bones_spec = {
+    bones_option_list, listlen(bones_option_list)
+};
 
 static const struct nh_listitem align_list[] = {
     {0, "lawful"},
@@ -139,146 +158,217 @@ static struct nh_autopickup_rules def_autopickup =
 static const struct nh_option_desc const_options[] = {
     {"autodig", "Commands and Confirmations",
      "dig if moving and wielding digging tool",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"autodigdown", "Commands and Confirmations",
      "autodig downwards tries to create a pit or hole",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"autopickup", "Commands and Confirmations",
      "automatically pick up objects you move over",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"autopickup_rules", "Commands and Confirmations",
      "rules to decide what to autopickup if autopickup is on",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_AUTOPICKUP_RULES, {.ar = &def_autopickup}},
     {"autoquiver", "Commands and Confirmations",
      "when firing with an empty quiver, select something suitable",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"corridorbranch", "Commands and Confirmations",
      "branching corridors do not stop farmove",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"disclose", "Endgame Sequence",
      "whether to disclose information at end of game",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_ENUM, {.e = DISCLOSE_PROMPT_DEFAULT_YES}},
     {"fruit", "Personalization",
      "the name of a fruit you enjoy eating",
+     nh_lockopt_locked,
      nh_birth_ingame, OPTTYPE_STRING, {.s = NULL}},
     {"menustyle", "Messages and Menus",
      "user interface for object selection",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_ENUM, {.e = MENU_FULL}},
     {"message_abbrev", "Messages and Menus",
      "abbreviate multiline messages",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"movecommand", "Commands and Confirmations",
      "what the movement keys do",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_ENUM, {.e = uim_standard}},
     {"multistage_equip", "Commands and Confirmations",
      "equipping items can imply unequipping others",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"packorder", "Messages and Menus",
      "the inventory order of the items in your pack",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_STRING, {.s = NULL}},
     {"pickup_burden", "Commands and Confirmations",
      "maximum burden picked up before prompt",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_ENUM, {.e = MOD_ENCUMBER}},
     {"pickup_thrown", "Commands and Confirmations",
      "autopickup items you threw or fired",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"prayconfirm", "Commands and Confirmations",
      "use confirmation prompt when #pray command issued",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"pushweapon", "Commands and Confirmations",
      "offhand the old weapon when wielding a new one",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"show_uncursed", "Messages and Menus",
      "always show uncursed status",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"server_messages", "Messages and Menus",
      "deliver messages from other players",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"showrace", "Map Display",
      "show yourself by your race rather than by role",
+     nh_lockopt_locked,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = FALSE}},
     {"sortpack", "Messages and Menus",
      "group similar kinds of objects in inventory",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"sparkle", "Map Display",
      "display sparkly effect for resisted magical attacks",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"tombstone", "Messages and Menus",
      "print tombstone when you die",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"travel_interrupt", "Commands and Confirmations",
      "interrupt travel (_) when a hostile is in sight",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
     {"verbose", "Messages and Menus",
      "put more information in combat messages",
+     nh_lockopt_always_available,
      nh_birth_ingame, OPTTYPE_BOOL, {.b = TRUE}},
 
     {"name", "Personalization",
      "character name",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_STRING, {.s = NULL}},
     {"mode", "Fun/Easier Game Modes",
      "disable death and maybe enable debug features",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_ENUM, {.e = MODE_NORMAL}},
     {"seed", "Online and Tournaments",
      "seed: blank; or 16 letters to play a set non-scoring dungeon",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_STRING, {.s = NULL}},
     {"timezone", "Personalization",
      "time zone to use for time-dependent effects",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_ENUM, {.e = 0}},
     {"elbereth", "Customizable Gameplay Elements",
      "the E-word repels monsters",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_BOOL, {.b = TRUE}},
     {"reincarnation", "Customizable Gameplay Elements",
      "Special Rogue-like levels",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_BOOL, {.b = TRUE}},
     {"seduction", "Customizable Gameplay Elements",
      "certain monsters may seduce you",
+     nh_lockopt_always_available,
      nh_birth_lasting, OPTTYPE_BOOL, {.b = TRUE}},
     {"bones", "Online and Tournaments",
      "allow encountering levels from previous games",
-     nh_birth_lasting, OPTTYPE_BOOL, {.b = TRUE}},
+     nh_lockopt_always_available,
+     nh_birth_lasting, OPTTYPE_ENUM, {.e = 1}},
     {"permablind", "Challenge Modes",
      "spend the whole game blind",
+     nh_lockopt_locked,
      nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
     {"permahallu", "Challenge Modes",
      "spend the whole game hallucinating",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permaconf", "Challenge Modes",
+     "spend the whole game confused",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permastun", "Challenge Modes",
+     "spend the whole game stunned",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permaglib", "Challenge Modes",
+     "spend the whole game with greasy fingers",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permafumble", "Challenge Modes",
+     "spend the whole game fumbling",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permalame", "Challenge Modes",
+     "spend the whole game with wounded legs",
+     nh_lockopt_locked,
+     nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
+    {"permabadluck", "Challenge Modes",
+     "spend the whole game with rotten luck",
+     nh_lockopt_locked,
      nh_birth_lasting, OPTTYPE_BOOL, {.b = FALSE}},
     {"autowear", "Challenge Modes",
      "automatically equip starting armor",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_BOOL, {.b = TRUE}},
     {"polyinit", "Fun/Easier Game Modes",
      "play in monster form (non-scoring)",
+     nh_lockopt_locked,
      nh_birth_lasting, OPTTYPE_ENUM, {.e = -1}},
 
     {"legacy", "Messages and Menus",
      "print introductory message",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_BOOL, {.b = TRUE}},
     {"align", "Character Selection",
      "your starting alignment",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_ENUM, {.e = ROLE_NONE}},
     {"gender", "Character Selection",
      "your starting gender",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_ENUM, {.e = ROLE_NONE}},
     {"race", "Character Selection",
      "your starting race",
+     nh_lockopt_unlocked,
      nh_birth_creation, OPTTYPE_ENUM, {.e = ROLE_NONE}},
     {"role", "Character Selection",
      "your starting role",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_ENUM, {.e = ROLE_NONE}},
     {"catname", "Personalization",
      "the name of your (first) cat",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_STRING, {.s = NULL}},
     {"dogname", "Personalization",
      "the name of your (first) dog",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_STRING, {.s = NULL}},
     {"horsename", "Personalization",
      "the name of your (first) horse",
+     nh_lockopt_locked,
      nh_birth_creation, OPTTYPE_STRING, {.s = NULL}},
     {"pettype", "Personalization",
      "your preferred initial pet type",
+     nh_lockopt_always_available,
      nh_birth_creation, OPTTYPE_ENUM, {.e = 0}},
 
-    {NULL, NULL, NULL, nh_birth_ingame, OPTTYPE_BOOL, {.s = NULL}}
+    {NULL, NULL, NULL, nh_lockopt_always_available, nh_birth_ingame,
+     OPTTYPE_BOOL, {.s = NULL}}
 };
 
 
@@ -309,9 +399,14 @@ static const struct nhlib_boolopt_map boolopt_map[] = {
     {"elbereth", &flags.elbereth_enabled},
     {"reincarnation", &flags.rogue_enabled},
     {"seduction", &flags.seduce_enabled},
-    {"bones", &flags.bones_enabled},
     {"permablind", &flags.permablind},
     {"permahallu", &flags.permahallu},
+    {"permaconf", &flags.permaconf},
+    {"permastun", &flags.permastun},
+    {"permaglib", &flags.permaglib},
+    {"permafumble", &flags.permafumble},
+    {"permalame", &flags.permalame},
+    {"permabadluck", &flags.permabadluck},
     {NULL, NULL}
 };
 
@@ -345,25 +440,38 @@ build_role_spec(void)
     if (role_spec.choices)
         return;
 
-    int i;
+    int i, j, k;
     struct nh_listitem *choices;
 
     /* build list of roles */
-    for (i = 0; roles[i].name.m || roles[i].name.f; i++)
-        ; /* just count em */
-    role_spec.numchoices = i + 2;
-    choices = malloc((i + 2) * sizeof (struct nh_listitem));
     for (i = 0; roles[i].name.m || roles[i].name.f; i++) {
-        choices[i].id = i;
-        if (roles[i].name.m)
-            choices[i].caption = roles[i].name.m;
-        else
-            choices[i].caption = roles[i].name.f;
+        if (is_unlocked_feature(UNLOCK_FIELD_ROLE, roles[i].unlocked))
+            j++; /* just count unlocked ones */
+        k++; /* but also count them all */
     }
-    choices[i].id = ROLE_NONE;
-    choices[i].caption = "ask";
-    choices[i + 1].id = ROLE_RANDOM;
-    choices[i + 1].caption = "random";
+    role_spec.numchoices = j + 1;
+    choices = malloc((k + 2) * sizeof (struct nh_listitem));
+    j = 0;
+    for (i = 0; roles[i].name.m || roles[i].name.f; i++) {
+        if (is_unlocked_feature(UNLOCK_FIELD_ROLE, roles[i].unlocked)) {
+            choices[j].id = i;
+            if (roles[i].name.m)
+                choices[j].caption = roles[i].name.m;
+            else
+                choices[j].caption = roles[i].name.f;
+            j++;
+        }
+    }
+    choices[j].id = ROLE_NONE;
+    choices[j].caption = "ask";
+    choices[j + 1].id = ROLE_RANDOM;
+    choices[j + 1].caption = "random";
+
+    /* To prevent segfaults, the rest also needs to be initialized */
+    for (i = j + 2; i < k; i++) {
+        choices[i].id = ROLE_NONE;
+        choices[i].caption = "[LOCKED]";
+    }
 
     role_spec.choices = choices;
 }
@@ -412,8 +520,11 @@ new_opt_struct(void)
 
     nhlib_find_option(options, "name")->s.maxlen = PL_NSIZ;
     nhlib_find_option(options, "seed")->s.maxlen = RNG_SEED_SIZE_BASE64;
-    nhlib_find_option(options, "mode")->e = mode_spec;
+    nhlib_find_option(options, "mode")->e =
+        is_unlocked_feature(UNLOCK_FIELD_OPT, UNLOCKFEAT_OPT_CHALLENGE) ?
+        mode_spec : mode_spec_nochallenge;
     nhlib_find_option(options, "timezone")->e = timezone_spec;
+    nhlib_find_option(options, "bones")->e = bones_spec;
     nhlib_find_option(options, "polyinit")->e = polyinit_spec;
     nhlib_find_option(options, "align")->e = align_spec;
     nhlib_find_option(options, "gender")->e = gender_spec;
@@ -475,6 +586,11 @@ set_option(const char *name, union nh_optvalue value,
 
     if (!nhlib_option_value_ok(option, value))
         goto free;
+
+    /* In the case where option->lockstate == nh_lockopt_locked, we still want
+       to process the option here, to set it to its default value.  Checking
+       for lockedness and leaving the thing off the actual menu is handled in
+       the client, in menu_add_options in nethack/src/options.c q.v. */
 
     nhlib_copy_option_value(option, value);
 
@@ -556,6 +672,8 @@ set_option(const char *name, union nh_optvalue value,
         ngo->preferred_pet = (char)option->value.e;
     } else if (!strcmp("timezone", option->name)) {
         flags.timezone = option->value.e;
+    } else if (!strcmp("bones", option->name)) {
+        flags.bones_enabled = option->value.e;
     } else if (!strcmp("polyinit", option->name)) {
         flags.polyinit_mnum = option->value.e;
     }
@@ -660,6 +778,8 @@ nh_get_options(void)
                 flags.challenge ? MODE_CHALLENGE : MODE_NORMAL;
         } else if (!strcmp("timezone", option->name)) {
             option->value.e = flags.timezone;
+        } else if (!strcmp("bones", option->name)) {
+            option->value.e = flags.bones_enabled;
         } else if (!strcmp("polyinit", option->name)) {
             option->value.e = flags.polyinit_mnum;
         } else if (!strcmp("align", option->name)) {
@@ -755,9 +875,10 @@ fruitadd(const char *str)
             (!strncmp(str, "tin of ", 7) &&
              (!strcmp(str + 7, "spinach") || name_to_mon(str + 7) >= LOW_PM)) ||
             !strcmp(str, "empty tin") ||
-            ((!strncmp(str + strlen(str) - 7, " corpse", 7) ||
-              !strncmp(str + strlen(str) - 4, " egg", 4)) &&
-             name_to_mon(str) >= LOW_PM)) {
+            (((!strncmp(str + strlen(str) - 7, " corpse", 7) ||
+               !strncmp(str + strlen(str) - 4, " egg", 4)) &&
+              name_to_mon(str) >= LOW_PM) &&
+             (getmonth() != 4 || getmday() > 1))) {
             strcpy(buf, gamestate.fruits.curname);
             strcpy(gamestate.fruits.curname, "candied ");
             strncat(gamestate.fruits.curname + 8, buf, PL_FSIZ - 8 - 1);

@@ -809,8 +809,7 @@ create_monster(struct level *lev, monster * m, struct mkroom *croom)
             }
         } else {
             pm = mkclass(&lev->z, class,
-                         ((class == S_KOP) || (class == S_EEL)) ? G_NOGEN : 0,
-                         mrng());
+                         (class == S_KRAKEN) ? G_NOGEN : 0, mrng());
             /* if we can't get a specific monster type (pm == 0) then the class 
                has been genocided, so settle for a random monster */
             if (!pm)
@@ -829,7 +828,7 @@ create_monster(struct level *lev, monster * m, struct mkroom *croom)
         else {
             if (!pm || !is_swimmer(pm))
                 get_location(lev, &x, &y, DRY);
-            else if (pm->mlet == S_EEL)
+            else if (pm->mlet == S_KRAKEN)
                 get_location(lev, &x, &y, WET);
             else
                 get_location(lev, &x, &y, DRY | WET);
@@ -1034,6 +1033,7 @@ create_object(struct level *lev, object * o, struct mkroom *croom)
         /* assume we wouldn't be given an egg corpsenm unless it was hatchable
            */
         if (otmp->otyp == EGG && otmp->corpsenm != NON_PM) {
+            /* TODO: verify whether otmp->otyp is the correct argument here. */
             if (dead_species(otmp->otyp, TRUE))
                 kill_egg(otmp); /* make sure nothing hatches */
             else
@@ -1377,6 +1377,12 @@ dig_corridor(struct level * lev, coord * org, coord * dest, boolean nxcor,
         dix = abs(xx - tx);
         diy = abs(yy - ty);
 
+        if ((dix > diy) && diy && !mrn2(dix-diy+1)) {
+            dix = 0;
+        } else if ((diy > dix) && dix && !mrn2(diy-dix+1)) {
+            diy = 0;
+        }
+
         /* do we have to change direction ? */
         if (dy && dix > diy) {
             int ddx = (xx > tx) ? -1 : 1;
@@ -1479,9 +1485,9 @@ create_corridor(struct level *lev, corridor *c, int *smeq)
     coord org, dest;
 
     if (c->src.room == -1) {
-        sort_rooms(lev);
+        sort_rooms(lev, LEVSTYLE_STANDARD);
         fix_stair_rooms(lev);
-        makecorridors(lev, smeq);
+        makecorridors(lev, smeq, LEVSTYLE_STANDARD);
         return;
     }
 

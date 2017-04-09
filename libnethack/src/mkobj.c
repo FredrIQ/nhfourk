@@ -192,6 +192,20 @@ mkobj_of_class(struct level *lev, char oclass, boolean artif, enum rng rng)
     return mksobj(lev, i, TRUE, artif, rng);
 }
 
+/* Note that this function is expected to return 0 in the event that the
+   random appearance in question is not used this game. */
+extern int
+find_objnum_by_appearance(int oclass, const char *appearance)
+{
+    int i;
+    for (i = bases[oclass]; objects[i].oc_class == oclass; i++) {
+        const char *descr = OBJ_DESCR(objects[i]);
+        if (!strcmp(descr, appearance))
+            return i;
+    }
+    return 0;
+}
+
 static void
 mkbox_cnts(struct obj *box, enum rng rng)
 {
@@ -508,6 +522,8 @@ mksobj(struct level *lev, int otyp, boolean init, boolean artif, enum rng rng)
     const char let = objects[otyp].oc_class;
 
     otmp = mksobj_basic(lev, otyp);
+    if (!otmp)
+        return NULL;
     otmp->o_id = next_ident();
 
     if (init) {
@@ -530,6 +546,9 @@ mksobj(struct level *lev, int otyp, boolean init, boolean artif, enum rng rng)
 
             if (artif && !rn2_on_rng(20, rng))
                 otmp = mk_artifact(lev, otmp, (aligntyp) A_NONE, rng);
+            else if ((otmp->spe > (1 + rn2_on_rng(5, rng))) && (!otmp->cursed))
+                otmp = oname_random_weapon(otmp, rng);
+
             break;
         case FOOD_CLASS:
             otmp->oeaten = 0;
@@ -586,6 +605,23 @@ mksobj(struct level *lev, int otyp, boolean init, boolean artif, enum rng rng)
                         (moves % 5)  ? fruitadd("sugar plum") :
                         (moves % 7)  ? fruitadd("cup of figgy pudding") :
                         fruitadd("slice of plum cake");
+                else if ((getmonth() == 2) && (getmday() == 14)) /* Valentine */
+                    otmp->spe = fruitadd("box of chocolates");
+                else if ((getmonth() == 3) && (getmday() == 14)) /* White Day */
+                    otmp->spe = fruitadd("box of white chocolate");
+                else if ((getmonth() == 3) && (getmday() == 17)) /* St. Pat */
+                    otmp->spe = fruitadd("mint-flavored milkshake");
+                else if ((getmonth() == 4) && (getmday() == 1))  /* Apr Fool */
+                    otmp->spe = fruitadd("partly eaten chickatrice corpse");
+                else if ((getmonth() == 7) && (getmday() == 1))  /* Canada */
+                    otmp->spe = fruitadd("candied maple leaf");
+                else if ((getmonth() == 7) && (getmday() == 4))  /* Fourth */
+                    otmp->spe = fruitadd("red, white, and blue lollipop");
+                else if ((getmonth() == 10) && (getmday() == 31))/* H'ween */
+                    otmp->spe = fruitadd("piece of candy corn");
+                else if ((getmonth() == 11) && (getwday() == 4) &&
+                         (getmday() >= 22) && (getmday() <= 28)) /* Thanks */
+                    otmp->spe = fruitadd("roast turkey drumstick");
                 else if (Race_if(PM_SCURRIER))
                     otmp->spe = fruitadd("chestnut");
                 else
@@ -1242,7 +1278,8 @@ is_flammable(const struct obj * otmp)
     /* Candles can be burned, but it makes no sense for them to be fireproofed. */
     if (Is_candle(otmp))
         return FALSE;
-    if (objects[otyp].oc_oprop == FIRE_RES || otyp == WAN_FIRE)
+    if (objects[otyp].oc_oprop == FIRE_RES ||
+        objects[otyp].oc_oprop2 == FIRE_RES || otyp == WAN_FIRE)
         return FALSE;
 
     return (boolean) ((omat <= WOOD && omat != LIQUID) || omat == PLASTIC);

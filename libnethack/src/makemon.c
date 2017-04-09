@@ -238,7 +238,6 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
  *      kobolds get darts to throw
  *      centaurs get some sort of bow & arrows or bolts
  *      soldiers get all sorts of things.
- *      kops get clubs & cream pies.
  *      the Wizard of Yendor gets various stuff
  */
     switch (ptr->mlet) {
@@ -416,13 +415,6 @@ m_initweap(struct level *lev, struct monst *mtmp, enum rng rng)
                 mongets(mtmp, !rn2_on_rng(3, rng) ? PICK_AXE : DAGGER, rng);
             }
         }
-        break;
-    case S_KOP:        /* create Keystone Kops with cream pies to throw. As
-                          suggested by KAA.  [MRS] */
-        if (!rn2_on_rng(4, rng))
-            m_initthrow(mtmp, CREAM_PIE, 2, rng);
-        if (!rn2_on_rng(3, rng))
-            mongets(mtmp, (rn2_on_rng(2, rng)) ? CLUB : RUBBER_HOSE, rng);
         break;
     case S_ORC:
         if (rn2_on_rng(2, rng))
@@ -1143,6 +1135,8 @@ makemon(const struct permonst *ptr, struct level *lev, int x, int y,
         mtmp->mtrapseen = (1L << (PIT - 1)) | (1L << (HOLE - 1));
     if (ptr->msound == MS_LEADER)       /* leader knows about portal */
         mtmp->mtrapseen |= (1L << (MAGIC_PORTAL - 1));
+    if (mmflags && MM_KOP)
+        mtmp->iskop = 1;
 
     mtmp->dlevel = lev;
     place_monster(mtmp, x, y);
@@ -1211,7 +1205,7 @@ makemon(const struct permonst *ptr, struct level *lev, int x, int y,
             mtmp->minvis = TRUE;
         }
         break;
-    case S_EEL:
+    case S_KRAKEN:
         if (is_pool(lev, x, y))
             mtmp->mundetected = TRUE;
         break;
@@ -1493,6 +1487,8 @@ rndmonst_inner(const d_level *dlev, char class, int ignoreflags, enum rng rng)
     boolean hell = In_hell(dlev);
     boolean rogue = Is_rogue_level(dlev);
     boolean elem_plane = In_endgame(dlev) && !Is_astralevel(dlev);
+    boolean isdeep = Is_earthlevel(dlev) ||
+        ((depth(dlev) > 12) && (!Is_outdoors(dlev)));
 
     int geno = ptr ? ptr->geno & ~ignoreflags : 0;
 
@@ -1523,6 +1519,8 @@ rndmonst_inner(const d_level *dlev, char class, int ignoreflags, enum rng rng)
             ptr = NULL;                          /* elementals on wrong plane */
         if (ptr && ((hell && (geno & G_NOHELL)) || (!hell && (geno & G_HELL))))
             ptr = NULL;                       /* flagged to not generate here */
+        if (ptr && (!isdeep) && (ptr->mlet == S_XORN))
+            ptr = NULL;    /* deep rock dwellers don't randomly generate here */
 
         /* Hard player-based checks: stop the monster generating, but change to
            the main RNG if this happens in level generation */
@@ -1798,7 +1796,7 @@ int
 superioritem(struct monst *mon, int original)
 {
     int superioritem = original;
-    int nosilver = (mon && hates_silver(mon->data)) ? 1 : 0;
+    int nosilver = (mon && hates_material(mon->data, SILVER)) ? 1 : 0;
     if (!Inhell)
         return original;
     /* Note: I'm sure some of these probabilities will need tweaked. */
@@ -1864,13 +1862,13 @@ superioritem(struct monst *mon, int original)
             superioritem = T_SHIRT;
             break;
         case 2:
-            superioritem = BLACK_DRAGON_SCALE_MAIL;
+            superioritem = ELVEN_MITHRIL_COAT;
             break;
         case 3:
-            superioritem = SILVER_DRAGON_SCALE_MAIL;
+            superioritem = PLATE_MAIL;
             break;
         case 4:
-            superioritem = GRAY_DRAGON_SCALE_MAIL;
+            superioritem = CRYSTAL_PLATE_MAIL;
             break;
         default:
             superioritem = T_SHIRT;
@@ -1899,6 +1897,11 @@ mongets(struct monst *mtmp, int otyp, enum rng rng)
             if ((otmp->oclass == WEAPON_CLASS) || 
                 (otmp->oclass == ARMOR_CLASS)) {
                 otmp->spe += rn2_on_rng(3, rng);
+            }
+            if ((otmp->oclass == ARMOR_CLASS) &&
+                (objects[otmp->otyp].oc_armcat == os_arm) &&
+                !rn2_on_rng(7, rng)) {
+                /* select and apply scale color */
             }
         }
         if (otmp->otyp == SPEAR || otmp->otyp == DWARVISH_SPEAR ||
@@ -2503,8 +2506,19 @@ save_fcorr(struct memfile *mf, const struct fakecorridor *f)
    changing that value breaks save compatibility (but so does changing the
    number of bytes this function writes). */
 void
-save_mon(struct memfile *mf, const struct monst *mon, const struct level *l)
+save_mon(struct memfile *mf, struct monst *mon, const struct level *l)
 {
+    /* Check muxy for an invalid value (mux/muy being equal to mx/my). If this has
+       happened, run an impossible and set it to ROWNO/COLNO to allow games to continue
+       properly. */
+    xchar mux = mon->mux;
+    xchar muy = mon->muy;
+    if (mon->mux == mon->mx && mon->muy == mon->my) {
+        impossible("save_mon: muxy and mxy are equal?");
+        mux = COLNO;
+        muy = ROWNO;
+    }
+
     int idx, i;
     unsigned int mflags;
     const struct eshk *shk;
@@ -2575,8 +2589,8 @@ save_mon(struct memfile *mf, const struct monst *mon, const struct level *l)
     mwrite8(mf, mon->mx);
     mwrite8(mf, mon->my);
     mhint_mon_coordinates(mf); /* savemap: ignore */
-    mwrite8(mf, mon->mux);
-    mwrite8(mf, mon->muy);
+    mwrite8(mf, mux);
+    mwrite8(mf, muy);
     mwrite8(mf, mon->m_lev);
     mwrite8(mf, mon->malign);
     mwrite16(mf, mon->moveoffset);

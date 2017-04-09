@@ -1,5 +1,5 @@
 /* vim:set cin ft=c sw=4 sts=4 ts=8 et ai cino=Ls\:0t0(0 : -*- mode:c;fill-column:80;tab-width:8;c-basic-offset:4;indent-tabs-mode:nil;c-file-style:"k&r" -*-*/
-/* Last modified by Alex Smith, 2015-11-13 */
+/* Last modified by Alex Smith, 2016-06-30 */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /* NetHack may be freely redistributed.  See license for details. */
 
@@ -194,6 +194,7 @@ make_corpse(struct monst *mtmp)
     int mndx = monsndx(mdat);
 
     switch (mndx) {
+        /* TODO: handle elder and great dragons similarly. */
     case PM_GRAY_DRAGON:
     case PM_SILVER_DRAGON:
     case PM_RED_DRAGON:
@@ -370,10 +371,11 @@ minliquid(struct monst *mtmp)
     /* Gremlin multiplying won't go on forever since the hit points keep going
        down, and when it gets to 1 hit point the clone function will fail. */
     if (mtmp->data == &mons[PM_GREMLIN] &&
-        (inpool || infountain || inshallow) && rn2(3)) {
+        (inpool || infountain || inshallow) &&
+        (mtmp->mtame || !mtmp->mpeaceful) && rn2(3)) {
         if (split_mon(mtmp, NULL))
             dryup(mtmp->mx, mtmp->my, FALSE);
-        if (inpool)
+        if (inpool && !m_has_property(mtmp, PROT_WATERDMG, ANY_PROPERTY, FALSE))
             water_damage_chain(mtmp->minvent, FALSE);
         return 0;
     } else if (mtmp->data == &mons[PM_IRON_GOLEM] &&
@@ -399,8 +401,10 @@ minliquid(struct monst *mtmp)
                 return 1;
             }
         }
-        if (inshallow)
-            water_damage(which_armor(mtmp, os_armf), FALSE, FALSE);
+        if (m_has_property(mtmp, PROT_WATERDMG, ANY_PROPERTY, FALSE))
+            ;
+        else if (inshallow)
+            water_damage(which_armor(mtmp, os_armf), NULL, FALSE);
         else
             water_damage_chain(mtmp->minvent, FALSE);
         return 0;
@@ -481,7 +485,8 @@ minliquid(struct monst *mtmp)
             mondead(mtmp);
             if (!DEADMONSTER(mtmp)) {
                 rloc(mtmp, TRUE, mtmp->dlevel);
-                water_damage_chain(mtmp->minvent, FALSE);
+                if (!m_has_property(mtmp, PROT_WATERDMG, ANY_PROPERTY, FALSE))
+                    water_damage_chain(mtmp->minvent, FALSE);
                 minliquid(mtmp);
                 return 0;
             }
@@ -489,7 +494,7 @@ minliquid(struct monst *mtmp)
         }
     } else {
         /* but eels have a difficult time outside */
-        if (mtmp->data->mlet == S_EEL && !Is_waterlevel(&u.uz) &&
+        if (mtmp->data->mlet == S_KRAKEN && !Is_waterlevel(&u.uz) &&
             !is_puddle(level, mtmp->mx, mtmp->my)) {
             if (mtmp->mhp >= 2)
                 mtmp->mhp--;
@@ -1077,7 +1082,7 @@ can_carry(struct monst *mtmp, struct obj *otmp)
         return FALSE;
     if (otyp == CORPSE && is_rider(&mons[otmp->corpsenm]))
         return FALSE;
-    if (objects[otyp].oc_material == SILVER && hates_silver(mdat) &&
+    if (hates_material(mdat, objects[otyp].oc_material) &&
         (otyp != BELL_OF_OPENING || !is_covetous(mdat)))
         return FALSE;
 
@@ -1127,7 +1132,7 @@ mfndpos(struct monst *mon, coord * poss,        /* coord poss[9] */
     nowtyp = mlevel->locations[x][y].typ;
 
     nodiag = (mdat == &mons[PM_GRID_BUG]);
-    wantpool = mdat->mlet == S_EEL;
+    wantpool = mdat->mlet == S_KRAKEN;
     poolok = is_flyer(mdat) || is_clinger(mdat) ||
         (is_swimmer(mdat) && !wantpool);
     lavaok = is_flyer(mdat) || is_clinger(mdat) || likes_lava(mdat);
@@ -1798,7 +1803,7 @@ mondead(struct monst *mtmp)
     if (mtmp->m_id == u.quest_status.leader_m_id)
         u.quest_status.leader_is_dead = TRUE;
 
-    if (mtmp->data->mlet == S_KOP) {
+    if (mtmp->iskop) {
         /* Dead Kops may come back. */
         switch (rnd(5)) {
         case 1:        /* returns near the stairs */
@@ -2161,6 +2166,13 @@ xkilled(struct monst *mtmp, int dest)
         historic_event(FALSE, FALSE, "killed %s %s.",
                        x_monnam(mtmp, ARTICLE_NONE, NULL, EXACT_NAME, TRUE),
                        hist_lev_name(&u.uz, TRUE));
+        if (mtmp->data == &mons[PM_MEDUSA]) {
+            achievement(achieve_kill_medusa);
+        } else if (mtmp->data == &mons[urole.neminum]) {
+            achievement(achieve_kill_nemesis);
+        } else if (mtmp->data == &mons[PM_WIZARD_OF_YENDOR]) {
+            achievement(achieve_kill_rodney);
+        }
     }
 
     mdat = mtmp->data;  /* note: mondead can change mtmp->data */
@@ -2176,7 +2188,7 @@ xkilled(struct monst *mtmp, int dest)
 
     /* might be here after swallowed */
     if (((x != u.ux) || (y != u.uy)) && !rn2(challengemode ? 36 : 6) &&
-        !(mvitals[mndx].mvflags & G_NOCORPSE) && mdat->mlet != S_KOP) {
+        !(mvitals[mndx].mvflags & G_NOCORPSE) && !mtmp->iskop) {
         int typ;
 
         otmp = mkobj_at(RANDOM_CLASS, level, x, y, TRUE, mdat->msize < MZ_HUMAN
@@ -2375,8 +2387,10 @@ mnearto(struct monst * mtmp, xchar x, xchar y, boolean move_other)
         /* actually we have real problems if enexto ever fails. migrating_mons
            that need to be placed will cause no end of trouble. */
         if (!enexto(&mm, level, newx, newy, mtmp->data))
-            panic("Nowhere to place '%s' (at (%d, %d), wanted (%d, %d))",
-                  k_monnam(mtmp), mtmp->mx, mtmp->my, x, y);
+            if (!enexto_core(&mm, level, newx, newy, mtmp->data,
+                             MM_IGNOREWATER))
+                panic("Nowhere to place '%s' (at (%d, %d), wanted (%d, %d))",
+                      k_monnam(mtmp), mtmp->mx, mtmp->my, x, y);
         newx = mm.x;
         newy = mm.y;
     }
@@ -3008,7 +3022,7 @@ newcham(struct monst *mtmp, const struct permonst *mdat,
         mtmp->perminvis = pm_invisible(mdat);
     mtmp->minvis = mtmp->invis_blkd ? 0 : mtmp->perminvis;
     if (!(hides_under(mdat) && OBJ_AT_LEV(mtmp->dlevel, mtmp->mx, mtmp->my)) &&
-        !(mdat->mlet == S_EEL && is_pool(level, mtmp->mx, mtmp->my)))
+        !(mdat->mlet == S_KRAKEN && is_pool(level, mtmp->mx, mtmp->my)))
         mtmp->mundetected = 0;
     if (u.ustuck == mtmp) {
         if (Engulfed) {

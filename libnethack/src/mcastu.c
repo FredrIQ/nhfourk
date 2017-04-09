@@ -455,7 +455,10 @@ cast_wizard_spell(struct monst *mtmp, int dmg, int spellnum)
             int count;
 
             count = nasty(mtmp);        /* summon something nasty */
-            if (mtmp->iswiz)
+            if (mtmp->iswiz && !Deaf)
+                /* The Wizard of Yendor _can_ talk directly into your mind,
+                   but in this case he's talking to someone else and you're
+                   only overhearing, so you don't hear it if deaf. */
                 verbalize(msgc_levelwarning, "Destroy the thief, my pet%s!",
                           plur(count));
             else {
@@ -1388,6 +1391,7 @@ ucast_wizard_spell(struct monst *mattk, struct monst *mtmp, int dmg,
 
 #define oresist_disintegration(obj) \
             (objects[obj->otyp].oc_oprop == DISINT_RES || \
+             objects[obj->otyp].oc_oprop2 == DISINT_RES || \
              obj_resists(obj, 0, 90) || is_quest_artifact(obj))
 
             if (otmp && !oresist_disintegration(otmp)) {

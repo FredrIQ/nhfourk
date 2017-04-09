@@ -39,6 +39,17 @@ m_has_property(const struct monst *mon, enum youprop property,
             rv |= W_MASK(os_birthopt);
         if (property == HALLUC && flags.permahallu)
             rv |= W_MASK(os_birthopt);
+        if (property == CONFUSION && flags.permaconf)
+            rv |= W_MASK(os_birthopt);
+        if (property == STUNNED && flags.permastun)
+            rv |= W_MASK(os_birthopt);
+        if (property == GLIB && flags.permaglib)
+            rv |= W_MASK(os_birthopt);
+        if (property == FUMBLING && flags.permafumble)
+            rv |= W_MASK(os_birthopt);
+        if ((property == LWOUNDED_LEGS || property == RWOUNDED_LEGS) &&
+            flags.permalame)
+            rv |= W_MASK(os_birthopt);
         if (property == UNCHANGING && flags.polyinit_mnum != -1)
             rv |= W_MASK(os_birthopt);
 
@@ -518,6 +529,8 @@ enlightenment(int final)
         you_are(&menu, "invulnerable");
     if (u.uedibility)
         you_can(&menu, "recognize detrimental food");
+    if (u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE))
+        you_are(&menu, "protected from water damage");
 
         /*** Troubles ***/
     if (Halluc_resistance)
@@ -531,6 +544,8 @@ enlightenment(int final)
             you_are(&menu, "confused");
         if (Blinded)
             you_are(&menu, "blinded");
+        if (Deaf)
+            you_are(&menu, "deaf");
         if (Sick) {
             if (u.usick_type & SICK_VOMITABLE)
                 you_are(&menu, "sick from food poisoning");
@@ -660,8 +675,10 @@ enlightenment(int final)
         you_are(&menu, "levitating");   /* without control */
     else if (Flying)
         you_can(&menu, "fly");
-    if (Wwalking)
+    if (Wwalking) {
+        identify_ww_source();
         you_can(&menu, "walk on water");
+    }
     if (Swimming)
         you_can(&menu, "swim");
     if (Breathless)
@@ -987,10 +1004,19 @@ show_conduct(int final)
 
     if (!u.uconduct[conduct_gnostic])
         you_have_been(&menu, "an atheist");
+    else if (!u.uconduct[conduct_boughtprotection])
+        enl_msg(&menu, You_, "have not received", "did not receive",
+                " divine protection by donating to a temple");
     if (u.uconduct_time[conduct_gnostic] > 1800) {
         buf = msgprintf("an atheist until turn %d",
                         u.uconduct_time[conduct_gnostic]);
         enl_msg(&menu, You_, "were ", "had been ", buf);
+    } else if (u.uconduct_time[conduct_boughtprotection] > 0) {
+        enl_msg(&menu, You_, "have received", "received",
+                msgprintf(" temple protection %d time%s, starting on turn %d",
+                          u.uconduct[conduct_boughtprotection],
+                          ((u.uconduct[conduct_boughtprotection]==1)?"":"s"),
+                          u.uconduct_time[conduct_boughtprotection]));
     }
 
     if (!u.uconduct[conduct_weaphit])
@@ -1144,14 +1170,28 @@ show_conduct(int final)
     }
 
     /* birth options */
-    if (!flags.bones_enabled)
+    if (flags.bones_enabled == bones_disabled)
         you_have_X(&menu, "disabled loading bones files");
+    else if (flags.bones_enabled == bones_anywhere)
+        you_have_X(&menu, "enabled loading special bones files");
     if (!flags.elbereth_enabled)        /* not the same as not /writing/ E */
         you_have_X(&menu, "abstained from Elbereth's help");
     if (flags.permahallu)
         enl_msg(&menu, You_, "are ", "were", "permanently hallucinating");
     if (flags.permablind)
         enl_msg(&menu, You_, "are ", "were ", "permanently blind");
+    if (flags.permaconf)
+        enl_msg(&menu, You_, "are ", "were ", "permanently confused");
+    if (flags.permastun)
+        enl_msg(&menu, You_, "are ", "were ", "permanently stunned");
+    if (flags.permaglib)
+        enl_msg(&menu, You_, "have ", "had ", "permanently greasy fingers");
+    if (flags.permafumble)
+        enl_msg(&menu, You_, "are ", "were ", "permanently fumbling");
+    if (flags.permalame)
+        enl_msg(&menu, You_, "have ", "had ", "permanently wounded legs");
+    if (flags.permabadluck)
+        enl_msg(&menu, You_, "have ", "had ", "permanent bad luck");
 
     /* Pop up the window and wait for a key */
     display_menu(&menu, "Voluntary challenges:", PICK_NONE,

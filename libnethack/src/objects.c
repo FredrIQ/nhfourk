@@ -38,6 +38,8 @@ struct monst {
 # define OBJ(name,desc) name,desc
 # define OBJECT(obj,bits,prp,sym,prob,dly,wt,cost,sdam,ldam,oc1,oc2,nut,color) \
              {obj}
+# define OBJECT2(obj,bits,p1,p2,sym,prob,dly,wt,cost,sd,ld,oc1,oc2,nut,color) \
+             {obj}
 
 const struct objdescr obj_descr[] = {
 #else
@@ -46,8 +48,13 @@ const struct objdescr obj_descr[] = {
 # define BITS(nmkn,mrg,uskn,ctnr,mgc,chrg,uniq,nwsh,big,tuf,dir,sub,mtrl) \
         nmkn,mrg,uskn,0,mgc,chrg,uniq,nwsh,0,big,tuf,dir,mtrl,sub
 # define OBJECT(obj,bits,prp,sym,prob,dly,wt,cost,sdam,ldam,oc1,oc2,nut,color) \
-        {0, 0, NULL, bits, prp, sym, dly, COLOR_FIELD(color) \
+        {0, 0, NULL, bits, prp, 0, sym, dly, COLOR_FIELD(color) \
          prob, wt, cost, sdam, ldam, oc1, oc2, nut}
+/* OBJECT2 differs from OBJECT by having the second property field.
+   Currently, it is only used by certain kinds of armor. */
+# define OBJECT2(obj,bits,prp,pr2,sym,prob,dly,wt,cost,sd,ld,oc1,oc2,nut,clr) \
+        {0, 0, NULL, bits, prp, pr2, sym, dly, COLOR_FIELD(clr) \
+         prob, wt, cost, sd, ld, oc1, oc2, nut}
 # define HARDGEM(n) (n >= 8)
 
 struct objclass *objects;
@@ -213,8 +220,6 @@ const struct objclass const_objects[] = {
     /* +1 small */
     WEAPON("club", NULL,
            1, 0, 0, 12, 30, 3, 6, 3, 0, B, P_CLUB, WOOD, HI_WOOD),
-    WEAPON("rubber hose", NULL,
-           1, 0, 0, 0, 20, 3, 4, 3, 0, 0, P_WHIP, PLASTIC, CLR_BROWN),
     WEAPON("quarterstaff", "staff",
            0, 0, 1, 11, 40, 5, 4, 4, 0, B, P_QUARTERSTAFF, WOOD, HI_WOOD),
 /* two-piece */
@@ -255,7 +260,15 @@ const struct objclass const_objects[] = {
                 OBJ(name,desc), BITS(kn,0,1,0,mgc,1,0,0,blk,0,0,sub,metal), \
                 power, ARMOR_CLASS, prob, delay, wt, cost, minsz, maxsz, \
                 10 - ac, can, wt, c )
-#define HELM(name,desc,kn,mgc,power,prob,delay,wt,cost,ac,can,minsz,maxsz,\
+/* But some armor provides two extrinsics: */
+#define ARMORTWO(name,desc,kn,mgc,blk,pwr1,pwr2,prob,delay,wt,cost,ac,can, \
+                 minsz, maxsz, sub, metal, c)                           \
+        OBJECT2( \
+                OBJ(name,desc), BITS(kn,0,1,0,mgc,1,0,0,blk,0,0,sub,metal), \
+                pwr1, pwr2, ARMOR_CLASS, prob, delay, wt, cost, minsz, maxsz, \
+                10 - ac, can, wt, c )
+
+#define HELM(name,desc,kn,mgc,power,prob,delay,wt,cost,ac,can,minsz,maxsz, \
              metal,c)                                                   \
         ARMOR(name,desc,kn,mgc,0,power,prob,delay,wt,cost,ac,can,minsz,maxsz,\
               ARM_HELM,metal,c)
@@ -291,7 +304,7 @@ const struct objclass const_objects[] = {
     HELM("dunce cap", "conical hat",
          0, 1, 0, 3, 1, 4, 1, 10, 0, MZ_SMALL, MZ_HUGE, CLOTH, CLR_BLUE),
     HELM("dented pot", NULL,
-         1, 0, 0, 2, 0, 10, 8, 9, 0, MZ_SMALL, MZ_LARGE, IRON, CLR_BLACK),
+         1, 0, 0, 2, 0, 10, 8, 9, 0, MZ_MEDIUM, MZ_HUGE, IRON, CLR_BLACK),
 /* With shuffled appearances... */
     HELM("helmet", "plumed helmet",
          0, 0, 0, 10, 1, 30, 10, 9, 0, MZ_SMALL, MZ_LARGE, IRON, HI_METAL),
@@ -311,34 +324,29 @@ const struct objclass const_objects[] = {
  *      (2) That the order of the dragon scale mail and dragon scales is the
  *          the same defined in monst.c.
  */
-#define DRGN_ARMR(name,mgc,power,cost,ac,color) \
-    ARMOR(name,NULL,1,mgc,1,power,0,5,40,cost,ac,0,MZ_HUMAN,MZ_HUMAN,   \
-          ARM_SUIT,DRAGON_HIDE,color)
-/* 3.4.1: dragon scale mail reclassified as "magic" since magic is
-   needed to create them */
-    DRGN_ARMR("gray dragon scale mail", 1, ANTIMAGIC, 1200, 1, CLR_GRAY),
-    DRGN_ARMR("silver dragon scale mail", 1, REFLECTING, 1200, 1,
-              DRAGON_SILVER),
-    DRGN_ARMR("red dragon scale mail", 1, FIRE_RES, 900, 1, CLR_RED),
-    DRGN_ARMR("white dragon scale mail", 1, COLD_RES, 900, 1, CLR_WHITE),
-    DRGN_ARMR("orange dragon scale mail", 1, SLEEP_RES, 900, 1, CLR_ORANGE),
-    DRGN_ARMR("black dragon scale mail", 1, DISINT_RES, 1200, 1, CLR_BLACK),
-    DRGN_ARMR("blue dragon scale mail", 1, SHOCK_RES, 900, 1, CLR_BLUE),
-    DRGN_ARMR("green dragon scale mail", 1, POISON_RES, 900, 1, CLR_GREEN),
-    DRGN_ARMR("yellow dragon scale mail", 1, ACID_RES, 900, 1, CLR_YELLOW),
+#define DRGN_ARMR(name,mgc,powerone,powertwo,cost,ac,color)     \
+    ARMORTWO(name,NULL,1,mgc,1,powerone,powertwo,0,5,40,cost,ac,0, \
+          MZ_HUMAN,MZ_HUMAN,ARM_CLOAK,DRAGON_HIDE,color)
 
 /* For now, only dragons leave these. */
 /* 3.4.1: dragon scales left classified as "non-magic"; they confer
    magical properties but are produced "naturally" */
-    DRGN_ARMR("gray dragon scales", 0, ANTIMAGIC, 700, 7, CLR_GRAY),
-    DRGN_ARMR("silver dragon scales", 0, REFLECTING, 700, 7, DRAGON_SILVER),
-    DRGN_ARMR("red dragon scales", 0, FIRE_RES, 500, 7, CLR_RED),
-    DRGN_ARMR("white dragon scales", 0, COLD_RES, 500, 7, CLR_WHITE),
-    DRGN_ARMR("orange dragon scales", 0, SLEEP_RES, 500, 7, CLR_ORANGE),
-    DRGN_ARMR("black dragon scales", 0, DISINT_RES, 700, 7, CLR_BLACK),
-    DRGN_ARMR("blue dragon scales", 0, SHOCK_RES, 500, 7, CLR_BLUE),
-    DRGN_ARMR("green dragon scales", 0, POISON_RES, 500, 7, CLR_GREEN),
-    DRGN_ARMR("yellow dragon scales", 0, ACID_RES, 500, 7, CLR_YELLOW),
+    DRGN_ARMR("gray dragon scales", 0, ANTIMAGIC, 0, 700, 10, CLR_GRAY),
+    DRGN_ARMR("silver dragon scales", 0, REFLECTING, 0, 700, 10, DRAGON_SILVER),
+    DRGN_ARMR("red dragon scales", 0, FIRE_RES, INFRAVISION, 500, 10, CLR_RED),
+    /* Red and white, in addition to the listed properties, also
+       provide you with the corresponding breath attack. */
+    DRGN_ARMR("white dragon scales", 0, COLD_RES, PROT_WATERDMG,
+              500, 10, CLR_WHITE),
+    DRGN_ARMR("orange dragon scales", 0, SLEEP_RES, FREE_ACTION,
+              500, 10, CLR_ORANGE),
+    DRGN_ARMR("black dragon scales", 0, DISINT_RES, DRAIN_RES,
+              700, 10, CLR_BLACK),
+    DRGN_ARMR("blue dragon scales", 0, SHOCK_RES, SEARCHING, 500, 10, CLR_BLUE),
+    DRGN_ARMR("green dragon scales", 0, POISON_RES, SICK_RES,
+              500, 10, CLR_GREEN),
+    DRGN_ARMR("yellow dragon scales", 0, ACID_RES, STONE_RES,
+              500, 10, CLR_YELLOW),
 #undef DRGN_ARMR
 
     /* The order in which armor is defined is relevant for sacrifice_gift()
@@ -414,9 +422,9 @@ const struct objclass const_objects[] = {
           0, 0, 0, 8, 0, 10, 50, 9, 3, MZ_HUMAN, MZ_HUMAN, CLOTH, HI_CLOTH),
     CLOAK("robe", NULL,
           1, 1, 0, 3, 0, 15, 50, 8, 3, MZ_SMALL, MZ_LARGE, CLOTH, CLR_RED),
-    CLOAK("alchemy smock", "apron",
-          0, 1, POISON_RES, 9, 0, 10, 50, 9, 1, MZ_TINY, MZ_HUGE,
-          CLOTH, CLR_WHITE),
+    /* Can't use the CLOAK macro for one that provides two properties: */
+    ARMORTWO("alchemy smock", "apron",0,1,0,POISON_RES,ACID_RES,
+             9,0,10,50,9,1,MZ_TINY,MZ_HUGE, ARM_CLOAK,CLOTH,CLR_WHITE),
     CLOAK("leather cloak", NULL,
           1, 0, 0, 8, 0, 15, 40, 9, 1, MZ_HUMAN, MZ_HUMAN, LEATHER, CLR_BROWN),
 /* With shuffled appearances... */
@@ -552,6 +560,22 @@ const struct objclass const_objects[] = {
          150, 1, 0, 5, IRON, HI_METAL),
     RING("protection from shape changers", PROT_FROM_SHAPE_CHANGERS, "shiny",
          100, 1, 0, 5, IRON, CLR_BRIGHT_CYAN),
+    RING(NULL, 0, "dime store", 100, 1, 0,  0, PLASTIC, CLR_WHITE),
+    RING(NULL, 0, "plain",      100, 1, 0,  4, IRON, HI_METAL),
+    RING(NULL, 0, "ridged",     100, 1, 0,  5, IRON, HI_METAL),
+    RING(NULL, 0, "glass",      100, 1, 0,  5, GLASS, CLR_BRIGHT_CYAN),
+    RING(NULL, 0, "obsidian",   100, 1, 0,  6, MINERAL, CLR_BLACK),
+    RING(NULL, 0, "tin",        100, 1, 0,  2, METAL, HI_METAL),
+    RING(NULL, 0, "bone",       100, 1, 0,  4, BONE, CLR_WHITE),
+    RING(NULL, 0, "ceramic",    100, 1, 0,  6, MINERAL, CLR_BROWN),
+    RING(NULL, 0, "promise",    100, 1, 0,  4, IRON, CLR_BRIGHT_GREEN),
+    RING(NULL, 0, "mood",       100, 1, 0,  3, METAL, CLR_MAGENTA),
+    RING(NULL, 0, "signet",     100, 1, 0,  5, COPPER, HI_COPPER),
+    RING(NULL, 0, "scarab",     100, 1, 0,  3, GOLD, HI_GOLD),
+    RING(NULL, 0, "intaglio",   100, 1, 0,  4, IRON, CLR_ORANGE),
+    RING(NULL, 0, "class",      100, 1, 0,  2, METAL, CLR_GREEN),
+    RING(NULL, 0, "wedding",    100, 1, 0, 10, GOLD, HI_GOLD),
+    RING(NULL, 0, "puzzle",     100, 1, 0,  2, WOOD, CLR_BROWN),
 #undef RING
 
 /* amulets ... - THE Amulet comes last because it is special */
@@ -615,7 +639,13 @@ const struct objclass const_objects[] = {
 #undef CONTAINER
 
 /* lock opening tools */
-    TOOL("skeleton key", "key", 0, 0, 0, 0, 80, 3, 10, IRON, HI_METAL),
+    TOOL("brass key", NULL, 0, 0, 0, 0, 15, 3, 20, COPPER, HI_COPPER),
+    TOOL("silver key", NULL, 0, 0, 0, 0, 10, 3, 40, SILVER, HI_SILVER),
+    TOOL("bronze key", NULL, 0, 0, 0, 0, 15, 4, 15, COPPER, HI_COPPER),
+    TOOL("door key", "key", 0, 0, 0, 0, 10, 3, 10, METAL, HI_METAL),
+    TOOL("skeleton key", NULL, 0, 0, 0, 0, 10, 2, 10, BONE, CLR_WHITE),
+    TOOL("iron key", "key", 0, 0, 0, 0, 15, 3, 10, IRON, HI_METAL),
+    TOOL("sturdy key", "key", 0, 0, 0, 0,  5, 2, 100, MITHRIL, HI_METAL),
     TOOL("lock pick", NULL, 1, 0, 0, 0, 60, 4, 20, IRON, HI_METAL),
     TOOL("credit card", NULL, 1, 0, 0, 0, 15, 1, 10, PLASTIC, CLR_WHITE),
 /* light sources */
@@ -767,6 +797,19 @@ const struct objclass const_objects[] = {
     POTION("fruit juice", "dark", 0, 0, 42, 50, CLR_BLACK),
     POTION("acid", "white", 0, 0, 10, 250, CLR_WHITE),
     POTION("oil", "murky", 0, 0, 30, 250, CLR_BROWN),
+    /* Extra appearances: */
+    POTION(NULL, "viscous",   1, 0, 0, 100, CLR_GREEN),
+    POTION(NULL, "aromatic",  1, 0, 0, 100, CLR_BRIGHT_BLUE),
+    POTION(NULL, "sticky",    1, 0, 0, 100, CLR_RED),
+    POTION(NULL, "muddy",     1, 0, 0, 100, CLR_BROWN),
+    POTION(NULL, "icy",       1, 0, 0, 100, CLR_BRIGHT_CYAN),
+    POTION(NULL, "foaming",   1, 0, 0, 100, CLR_BRIGHT_CYAN),
+    POTION(NULL, "creamy",    1, 0, 0, 100, CLR_YELLOW),
+    POTION(NULL, "gray",      1, 0, 0, 100, CLR_GRAY),
+    POTION(NULL, "amber",     1, 0, 0, 100, CLR_ORANGE),
+    POTION(NULL, "violet",    1, 0, 0, 100, CLR_BRIGHT_MAGENTA),
+    POTION(NULL, "deep blue", 1, 0, 0, 100, CLR_BLUE),
+    /* Non-random-appearance (special-cased in shuffle_all): */
     POTION("water", "clear", 0, 0, 92, 100, CLR_CYAN),
 #undef POTION
 
@@ -920,11 +963,32 @@ const struct objclass const_objects[] = {
     SPELL("cancellation", "shining", P_MATTER_SPELL, 15, 8, 7, 1,
           IMMEDIATE, CLR_WHITE, 'C'),
     SPELL("protection", "dull", P_CLERIC_SPELL, 18, 3, 1, 1,
-          NODIR, HI_PAPER, 'p'),
+          NODIR, CLR_GRAY, 'p'),
     SPELL("jumping", "thin", P_ESCAPE_SPELL, 20, 3, 1, 1,
           IMMEDIATE, HI_PAPER, 'j'),
     SPELL("stone to flesh", "thick", P_HEALING_SPELL, 15, 1, 3, 1,
           IMMEDIATE, HI_PAPER, 'S'),
+/* spare spellbook appearances */
+    SPELL(NULL, "dark",         0, 0, 0, 0, 1, 0, CLR_BLACK, '_'),
+    SPELL(NULL, "black",        0, 0, 0, 0, 1, 0, CLR_BLACK, '_'),
+    SPELL(NULL, "wide",         0, 0, 0, 0, 1, 0, CLR_RED, '_'),
+    SPELL(NULL, "long",         0, 0, 0, 0, 1, 0, CLR_ORANGE, '_'),
+    SPELL(NULL, "spotted",      0, 0, 0, 0, 1, 0, CLR_ORANGE, '_'),
+    SPELL(NULL, "striped",      0, 0, 0, 0, 1, 0, CLR_RED, '_'),
+    SPELL(NULL, "spiral-bound", 0, 0, 0, 0, 1, 0, CLR_BRIGHT_BLUE, '_'),
+    SPELL(NULL, "tattered",     0, 0, 0, 0, 1, 0, CLR_CYAN, '_'),
+    SPELL(NULL, "torn",         0, 0, 0, 0, 1, 0, CLR_CYAN, '_'),
+    SPELL(NULL, "calligraphed", 0, 0, 0, 0, 1, 0, CLR_BRIGHT_CYAN, '_'),
+    SPELL(NULL, "scrawled",     0, 0, 0, 0, 1, 0, CLR_BRIGHT_CYAN, '_'),
+    SPELL(NULL, "hand-printed", 0, 0, 0, 0, 1, 0, CLR_BRIGHT_CYAN, '_'),
+    SPELL(NULL, "woodcut",      0, 0, 0, 0, 1, 0, CLR_GRAY, '_'),
+    SPELL(NULL, "embossed",     0, 0, 0, 0, 1, 0, CLR_BLACK, '_'),
+    SPELL(NULL, "illuminated",  0, 0, 0, 0, 1, 0, CLR_BRIGHT_MAGENTA, '_'),
+    SPELL(NULL, "paperback",    0, 0, 0, 0, 1, 0, CLR_BRIGHT_BLUE, '_'),
+    SPELL(NULL, "stapled",      0, 0, 0, 0, 1, 0, CLR_GRAY, '_'),
+    SPELL(NULL, "pocket",       0, 0, 0, 0, 1, 0, CLR_BRIGHT_MAGENTA, '_'),
+    SPELL(NULL, "pale",         0, 0, 0, 0, 1, 0, CLR_BRIGHT_GREEN, '_'),
+    SPELL(NULL, "maroon",       0, 0, 0, 0, 1, 0, CLR_RED, '_'),
 /* blank spellbook must come last because it retains its description */
     SPELL("blank paper", "plain", P_NONE, 18, 0, 0, 0, 0, HI_PAPER, 0),
 /* a special, one of a kind, spellbook */
@@ -1085,6 +1149,7 @@ const struct objclass const_objects[] = {
 /* perform recursive compilation for second structure */
 # undef OBJ
 # undef OBJECT
+# undef OBJECT2
 # define OBJECTS_PASS_2_
 # include "objects.c"
 

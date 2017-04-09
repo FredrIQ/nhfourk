@@ -270,7 +270,10 @@ touchfood(void)
         if ((!carried(*uttf) && costly_spot((*uttf)->ox, (*uttf)->oy) &&
              !(*uttf)->no_charge) || (*uttf)->unpaid) {
             /* create a dummy duplicate to put on bill */
-            verbalize(msgc_unpaid, "You bit it, you bought it!");
+            if (Deaf)
+                pline(msgc_unpaid, "Your meal is placed on your bill.");
+            else
+                verbalize(msgc_unpaid, "You bit it, you bought it!");
             bill_dummy_object(*uttf);
         }
         nutrition_calculations(*uttf, &((*uttf)->oeaten), NULL, NULL);
@@ -351,6 +354,9 @@ done_eating(boolean message)
     if (message)
         pline(msgc_actionok, "You finish eating %s.", food_xname(otmp, TRUE));
 
+    if (otmp->otyp == SLIME_MOLD)
+        achievement(achieve_eat_slimemold);
+
     if (otmp->otyp == CORPSE)
         cpostfx(otmp->corpsenm);
     else
@@ -374,6 +380,11 @@ maybe_cannibal(int pm, boolean allowmsg)
         HAggravate_monster |= FROMOUTSIDE;
         change_luck(-rn1(4, 2));        /* -5..-2 */
         return TRUE;
+    } else if (Role_if(PM_CAVEMAN) && your_race(&mons[pm])) {
+        pline(msgc_aligngood, "You honor the dead.");
+        if (!rn2_on_rng(1 + abs(u.ualign.record), rng_role_alignment))
+            adjalign(1);
+        return FALSE;
     }
     return FALSE;
 }
@@ -871,8 +882,11 @@ costly_tin(const char *verb /* if 0, the verb is "open" */ )
           costly_spot(u.utracked[tos_tin]->ox, u.utracked[tos_tin]->oy) &&
           !u.utracked[tos_tin]->no_charge)
          || u.utracked[tos_tin]->unpaid)) {
-        verbalize(msgc_unpaid, "You %s it, you bought it!",
-                  verb ? verb : "open");
+        if (Deaf)
+            pline(msgc_unpaid, "The cost of the tin is placed on your bill.");
+        else
+            verbalize(msgc_unpaid, "You %s it, you bought it!",
+                      verb ? verb : "open");
         if (u.utracked[tos_tin]->quan > 1L)
             u.utracked[tos_tin] = splitobj(u.utracked[tos_tin], 1L);
         bill_dummy_object(u.utracked[tos_tin]);
@@ -1157,6 +1171,7 @@ rottenfood(struct obj *obj)
                 (u.usteed) ? "saddle" : surface(u.ux, u.uy);
         pline(msgc_statusbad, "The world spins and %s %s.", what, where);
         if (!Levitation && !Flying && !u.usteed &&
+            !u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE) &&
             is_damp_terrain(level, u.ux, u.uy))
             water_damage_chain(invent, FALSE);
         helpless(rnd(10), hr_fainted, "unconscious from rotten food", NULL);
@@ -1203,7 +1218,7 @@ eatcorpse(void)
               "Ulch!  That %s was tainted%s!",
               mons[mnum].mlet == S_FUNGUS ? "fungoid vegetation" :
               !vegetarian(&mons[mnum]) ? "meat" : "protoplasm",
-              cannibal ? "; you cannibal" : "");
+              cannibal ? ", you cannibal" : "");
         if (Sick_resistance) {
             pline(msgc_playerimmune,
                   "It doesn't seem at all sickening, though...");
@@ -1583,7 +1598,8 @@ eatspecial(int nutrition, struct obj *otmp)
 }
 
 /* NOTE: the order of these words exactly corresponds to the
-   order of oc_material values #define'd in objclass.h. */
+   order of oc_material values #define'd in objclass.h.
+   Some entries are different from matname[] in objnam.c */
 static const char *const foodwords[] = {
     "meal", "liquid", "wax", "food", "meat",
     "paper", "cloth", "leather", "wood", "bone", "scale",

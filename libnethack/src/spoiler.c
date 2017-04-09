@@ -92,16 +92,6 @@ const char *ad[ADSIZE] =
          "disenchantment", "corrosion", "vicarous suffering",
          "stinking cloud", "pits", "iceblock", "displace", "web"};
 
-/* NOTE: the order of these words exactly corresponds to the
-   order of oc_material values #define'd in objclass.h.  I
-   initially copy/pasted it from foodwords[] in eat.c */
-static const char *const material[] = {
-    "meal", "liquid", "wax", "vegetable", "meat",
-    "paper", "cloth", "leather", "wood", "bone", "scale",
-    "iron or steel", "metal", "copper", "silver", "gold",
-    "platinum", "mithril", "plastic", "glass", "gemstone", "mineral"
-};
-
 const char *
 htmlheader(const char * spoilername)
 {
@@ -564,7 +554,7 @@ spoilobjclass(FILE *file, const char * hrname, const char * aname,
                 "<td class=\"numeric weight\">%d</td>"
                 "<td class=\"numeric price\">%d</td>"
                 "</tr>\n",
-                spoiloname(i), material[objects[i].oc_material],
+                spoiloname(i), material_name(objects[i].oc_material),
                 extravalue, objects[i].oc_weight, objects[i].oc_cost);
     }
 
@@ -875,6 +865,7 @@ makehtmlspoilers(void)
                            O_CREAT | O_WRONLY, SPOILPREFIX);
     int i;
     struct artifact *art;
+    char *headrow = "";
     
     /* ######################## Weapons ######################## */
 
@@ -885,7 +876,7 @@ makehtmlspoilers(void)
 
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Weapons"));
+        fprintf(outfile, "%s", htmlheader("Weapons"));
         fprintf(outfile, "\n<table id=\"weapons\"><thead>\n  "
                 "<tr><th class=\"object\">weapon</th>"
                 "<th class=\"artifact\">artifact</th>"
@@ -914,7 +905,7 @@ makehtmlspoilers(void)
                     "<td class=\"notes wpnnotes\">%s</td>"
                     "</tr>\n",
                     spoiloname(i), spoilweapskill(i),
-                    material[objects[i].oc_material], spoiltohit(i, NULL),
+                    material_name(objects[i].oc_material), spoiltohit(i, NULL),
                     spoildamage(i, SDAM, NULL), spoildamage(i, LDAM, NULL),
                     objects[i].oc_weight, objects[i].oc_cost,
                     (objects[i].oc_bimanual ?
@@ -937,7 +928,7 @@ makehtmlspoilers(void)
                             "<td class=\"notes wpnnotes artinotes\">%s"
                             " <span class=\"versus\">%s</span></td>"
                             "</tr>", art->name, spoilweapskill(i),
-                            material[objects[i].oc_material],
+                            material_name(objects[i].oc_material),
                             spoiltohit(i, art), spoildamage(i, SDAM, art),
                             spoildamage(i, LDAM, art), objects[i].oc_weight,
                             objects[i].oc_cost,
@@ -964,7 +955,7 @@ makehtmlspoilers(void)
     
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Armor"));
+        fprintf(outfile, "%s", htmlheader("Armor"));
         fprintf(outfile, "\n<table id=\"armor\"><thead>\n  "
                 "<tr><th class=\"slot\">slot</th>"
                 "<th class=\"object\">armor</th>"
@@ -991,7 +982,7 @@ makehtmlspoilers(void)
                     oslotname(objects[i].oc_armcat), spoiloname(i),
                     (objects[i].a_can ?
                      msgprintf("MC%d", objects[i].a_can) : ""),
-                    objects[i].a_ac, material[objects[i].oc_material],
+                    objects[i].a_ac, material_name(objects[i].oc_material),
                     spoilarmorsize(&objects[i]),
                     objects[i].oc_weight, objects[i].oc_cost);
         }
@@ -1013,7 +1004,7 @@ makehtmlspoilers(void)
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         struct artifact *art;
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Artifacts"));
+        fprintf(outfile, "%s", htmlheader("Artifacts"));
         fprintf(outfile, "\n<p>For weapon artifacts, see also the "
                 "<a href=\"weapon-spoiler.html\">weapon spoiler</a></p>\n");
         fprintf(outfile, "\n<table id=\"artifacts\"><thead>\n  <tr>"
@@ -1064,7 +1055,7 @@ makehtmlspoilers(void)
     }
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Objects"));
+        fprintf(outfile, "%s", htmlheader("Objects"));
 
         fprintf(outfile, "<p>Note: for random-appearance objects, "
                 "material follows appearance rather than function.</p>");
@@ -1103,7 +1094,7 @@ makehtmlspoilers(void)
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         char lastmlet = 0;
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Monsters"));
+        fprintf(outfile, "%s", htmlheader("Monsters"));
         /* navbar at top */
         fprintf(outfile, "<div class=\"nav\">Jump to: ");
         for (i = 0; mons[i].mlet; i++)
@@ -1114,25 +1105,27 @@ makehtmlspoilers(void)
             }
         fprintf(outfile, "</div>");
         /* then the actual monster table */
+        lastmlet = mons[0].mlet;
+        headrow = "<tr><th class=\"mlet\"></th>"
+            "<th class=\"monster\">monster</th>"
+            "<th class=\"numeric level\">lv</th>"
+            "<th class=\"numeric monstr\">mon<br />str</th>"
+            "<th class=\"numeric speed\">mov</th>"
+            "<th class=\"numeric ac\">def</th>"
+            "<th class=\"numeric monmr\">mr</th>"
+            "<th class=\"align\">aln</th>"
+            "<th><span class=\"skills\">skills</span>"
+            "    <span class=\"attacks\">attacks</span></th>"
+            "<th class=\"resistances\">resists</th>"
+            "<th class=\"resgranted\">grants</th>"
+            "<th class=\"numeric nutrition\">nut</th>"
+            "<th class=\"numeric weight\">wt</th>"
+            "<th class=\"size\">sz</th>"
+            "<th class=\"mrace\">race</th>"
+            "<th class=\"flags\">flags</th>"
+            "</tr>\n";
         fprintf(outfile, "\n<table id=\"monsters\"><thead>\n  "
-                "<tr><th class=\"mlet\"></th>"
-                "<th class=\"monster\">monster</th>"
-                "<th class=\"numeric level\">lv</th>"
-                "<th class=\"numeric monstr\">mon<br />str</th>"
-                "<th class=\"numeric speed\">mov</th>"
-                "<th class=\"numeric ac\">def</th>"
-                "<th class=\"numeric monmr\">mr</th>"
-                "<th class=\"align\">aln</th>"
-                "<th><span class=\"skills\">skills</span>"
-                "    <span class=\"attacks\">attacks</span></th>"
-                "<th class=\"resistances\">resists</th>"
-                "<th class=\"resgranted\">grants</th>"
-                "<th class=\"numeric nutrition\">nut</th>"
-                "<th class=\"numeric weight\">wt</th>"
-                "<th class=\"size\">sz</th>"
-                "<th class=\"mrace\">race</th>"
-                "<th class=\"flags\">flags</th>"
-                "</tr>\n</thead><tbody>\n");
+                "%s</thead><tbody>\n", headrow);
 
         for (i = 0; mons[i].mlet; i++) {
             const boolean ul = mons[i].mcolor & HI_ULINE ? TRUE : FALSE;
@@ -1147,6 +1140,13 @@ makehtmlspoilers(void)
                                          (ul ? "<u>" : ""),
                                          (def_monsyms[(int)mons[i].mlet]),
                                          (ul ? "</u>" : ""));
+            if (i && !(i % 17)) { /* 17 plus the 1 we're adding makes 18 table
+                                     rows, a multiple of three, so the headrows
+                                     all get the same highlighting if we use the
+                                     CSS to backlight every third row. */
+                fprintf(outfile, "%s", headrow);
+                lastmlet = mons[i].mlet;
+            }
             fprintf(outfile, "<tr><td id=\"monst%d\" class=\"mlet\">%s</td>"
                     "<td class=\"monster\">%s</td>"
                     "<td class=\"numeric level\">%d</td>"
@@ -1187,7 +1187,7 @@ makehtmlspoilers(void)
     }
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader("Playable Characters"));
+        fprintf(outfile, "%s", htmlheader("Playable Characters"));
 
         fprintf(outfile, "<ul>"
                 "   <li><a href=\"#race\">Race</a></li>"
@@ -1283,7 +1283,7 @@ makehtmlspoilers(void)
     }
     if (change_fd_lock(fd, FALSE, LT_WRITE, 10)) {
         outfile = fdopen(fd, "w");
-        fprintf(outfile, htmlheader(""));
+        fprintf(outfile, "%s", htmlheader(""));
 
         fprintf(outfile, "<ul>\n"
                 "   <li><a href=\"objects-spoiler.html\">Objects</a><ul>"
@@ -1630,7 +1630,7 @@ makepinobotyaml(void)
                 AT(M3_BLINKAWAY, "FlBlinkAway");
                 AT(M3_VANDMGRDUC, "FlVanDmgRduc");
 #undef AT
-                if (hates_silver(pm)) fprintf(f, ", FlHatesSilver");
+                if (hates_material(pm, SILVER)) fprintf(f, ", FlHatesSilver");
                 if (passes_bars(pm)) fprintf(f, ", FlPassesBars");
                 if (vegan(pm)) fprintf(f, ", FlVegan");
                 else if (vegetarian(pm)) fprintf(f, ", FlVegetarian");

@@ -53,7 +53,7 @@ move_special(struct monst *mtmp, boolean in_his_shop, schar appr,
         allowflags |= ALLOW_DIG;
     if (!nohands(mtmp->data) && !verysmall(mtmp->data)) {
         allowflags |= OPENDOOR;
-        if (m_carrying(mtmp, SKELETON_KEY))
+        if (m_carrying_key(mtmp, FALSE))
             allowflags |= BUSTDOOR;
     }
     if (is_giant(mtmp->data))
@@ -382,8 +382,10 @@ intemple(int roomno)
     const char *msg1, *msg2;
     enum msg_channel msgc = msgc_npcvoice;
 
-    if (In_mines(&u.uz) && !historysearch("entered the Minetown temple", TRUE))
+    if (In_mines(&u.uz) && !historysearch("entered the Minetown temple", TRUE)) {
         historic_event(FALSE, TRUE, "entered the Minetown temple");
+        achievement(achieve_mines_temple);
+    }
 
     if (!temple_occupied(u.urooms0)) {
         if (tended) {
@@ -474,6 +476,14 @@ priest_talk(struct monst *priest)
     boolean coaligned = p_coaligned(priest);
     boolean strayed = (UALIGNREC < 0);
 
+    if (Deaf) {
+        if (!Blind)
+            pline(msgc_hint,
+                  "%s appears to be speaking, but you cannot hear %s.",
+                  Monnam(priest), mhim(priest));
+        return;
+    }
+
     /* KMH, conduct */
     break_conduct(conduct_gnostic);
 
@@ -530,20 +540,23 @@ priest_talk(struct monst *priest)
         return;
     } else {
         long offer;
+        long scale = u.ulevel * 100 *
+            (1 + u.uconduct[conduct_boughtprotection]);
 
         pline(msgc_uiprompt,
-              "%s asks you for a contribution for the temple.", Monnam(priest));
+              "%s asks for a contribution for the temple.  %s suggests %ldzm.",
+              Monnam(priest), msgupcasefirst(mhe(priest)), (scale * 2));
         if ((offer = bribe(priest)) == 0) {
             verbalize(msgc_alignbad, "Thou shalt regret thine action!");
             if (coaligned)
                 adjalign(-1);
-        } else if (offer < (u.ulevel * 200)) {
+        } else if (offer < (scale * 1)) {
             if (money_cnt(invent) > (offer * 2L))
                 verbalize(msgc_npcvoice, "Cheapskate.");
             else {
                 verbalize(msgc_npcvoice, "I thank thee for thy contribution.");
             }
-        } else if (offer < (u.ulevel * 400)) {
+        } else if (offer < (scale * 2)) {
             verbalize(msgc_aligngood, "Thou art indeed a pious individual.");
             if (money_cnt(invent) < (offer * 2L)) {
                 if (coaligned && UALIGNREC <= ALGN_SINNED)
@@ -551,8 +564,8 @@ priest_talk(struct monst *priest)
                 verbalize(msgc_statusgood, "I bestow upon thee a blessing.");
                 incr_itimeout(&HClairvoyant, rn1(500, 500));
             }
-        } else if (offer < (u.ulevel * 600) && u.ublessed < 20 &&
-                   (u.ublessed < 9 || !rn2(u.ublessed))) {
+        } else if (offer < (scale * 3) && u.ublessed < 10) {
+            break_conduct(conduct_boughtprotection);
             verbalize(msgc_intrgain, "Thy devotion has been rewarded.");
             if (!(HProtection & INTRINSIC)) {
                 HProtection |= FROMOUTSIDE;

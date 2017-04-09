@@ -19,14 +19,20 @@ mon_in_room(struct monst *mon, int rmtyp)
     return level->rooms[rno - ROOMOFFSET].rtype == rmtyp;
 }
 
+/* Note that besides sounds as such, this function also handles other
+   atmospheric effects, e.g., smells.  These still go on msgc_levelsound
+   but can be noticed even if you are deaf.  Most of the actual sounds
+   go through You_hear(), which checks for deafness; but there are
+   several that use pline() instead, hence the sounds boolean. */
 void
 dosounds(void)
 {
     struct mkroom *sroom;
     int hallu, vx, vy;
     struct monst *mtmp;
+    boolean sounds = canhear();
 
-    if (!canhear() || Engulfed || Underwater)
+    if (Engulfed || Underwater)
         return;
 
     hallu = Hallucination ? 1 : 0;
@@ -68,7 +74,7 @@ dosounds(void)
 
                 if (which != 2)
                     You_hear(msgc_levelsound, "%s", throne_msg[which]);
-                else
+                else if (sounds)
                     pline(msgc_levelsound, throne_msg[2], uhis());
                 return;
             }
@@ -80,7 +86,9 @@ dosounds(void)
             "You smell marsh gas!",     /* so it's a smell... */
             "You hear Donald Duck!",
         };
-        pline(msgc_levelsound, "%s", swamp_msg[rn2(2) + hallu]);
+        int idx = rn2(2) + hallu;
+        if (sounds || (idx == 1))
+            pline(msgc_levelsound, "%s", swamp_msg[idx]);
         return;
     }
     if ((sroom = search_special(level, VAULT)) && !rn2(200)) {
@@ -181,8 +189,8 @@ dosounds(void)
                     return;
                 } else if (monsndx(mtmp->data) == PM_ORANGE_DRAGON) {
                     if (Hallucination)
-                        pline(msgc_levelsound,
-                              "You hear someone reading actuarial tables.");
+                        You_hear(msgc_levelsound,
+                                 "someone reading actuarial tables.");
                     else if (Sleep_resistance)
                         pline(msgc_levelsound, "You yawn.");
                     else
@@ -218,8 +226,9 @@ dosounds(void)
                     }
                     /* fall through */
                 case 0:
-                    pline(msgc_levelsound,
-                          "You suddenly realize it is unnaturally quiet.");
+                    if (sounds)
+                        pline(msgc_levelsound,
+                              "You suddenly realize it is unnaturally quiet.");
                     break;
                 }
                 return;
@@ -380,23 +389,23 @@ yelp(struct monst *mtmp)
     else
         switch (mtmp->data->msound) {
         case MS_MEW:
-            yelp_verb = "yowl";
+            yelp_verb = (!Deaf) ? "yowl" : "arch";
             break;
         case MS_BARK:
         case MS_GROWL:
-            yelp_verb = "yelp";
+            yelp_verb = (!Deaf) ? "yelp" : "recoil";
             break;
         case MS_ROAR:
-            yelp_verb = "snarl";
+            yelp_verb = (!Deaf) ? "snarl" : "bluff";
             break;
         case MS_SQEEK:
-            yelp_verb = "squeal";
+            yelp_verb = (!Deaf) ? "squeal" : "quiver";
             break;
         case MS_SQAWK:
-            yelp_verb = "screak";
+            yelp_verb = (!Deaf) ? "screak" : "thrash";
             break;
         case MS_WAIL:
-            yelp_verb = "wail";
+            yelp_verb = (!Deaf) ? "wail" : "cringe";
             break;
         }
     if (yelp_verb) {
@@ -456,7 +465,12 @@ beg(struct monst *mtmp)
     else if (mtmp->data->msound >= MS_HUMANOID) {
         if (!canspotmon(mtmp))
             map_invisible(mtmp->mx, mtmp->my);
-        verbalize(msgc_petwarning, "I'm hungry.");
+        if (!Deaf)
+            verbalize(msgc_petwarning, "I'm hungry.");
+        else
+            pline(msgc_petwarning,
+                  "%s seems to be saying something, but you cannot hear.",
+                  Monnam(mtmp));
     }
 }
 
@@ -926,6 +940,11 @@ dotalk(const struct nh_cmd_arg *arg)
     if (Underwater) {
         pline(msgc_cancelled, "Your speech is unintelligible underwater.");
         return 0;
+    }
+    if (Deaf) {
+	pline(msgc_cancelled,
+              "How can you hold a conversation when you cannot hear?");
+	return 0;
     }
 
     if (!Blind && (otmp = shop_object(u.ux, u.uy)) != NULL) {

@@ -181,6 +181,10 @@ resolve_uim(enum u_interaction_mode uim, boolean weird_attack, xchar x, xchar y)
 
         if (!Levitation && !Flying && !is_clinger(URACEDATA) &&
             (lava || (pool && !HSwimming)) &&
+            !(Wwalking && uarmf && uarmf->otyp == WATER_WALKING_BOOTS &&
+              objects[uarmf->otyp].oc_name_known &&
+              (!lava || (uarmf->rknown && uarmf->oerodeproof &&
+                         Fire_resistance))) &&
             !is_pool(level, u.ux, u.uy) && !is_lava(level, u.ux, u.uy)) {
 
             if (cansee(x, y))
@@ -2140,6 +2144,7 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
                    DO_MOVE, &cache)) {
         /* We can't move there... but maybe we can dig. */
         if (flags.autodig && uim != uim_nointeraction &&
+            (flags.occupation != occ_autoexplore) &&
             thismove != occ_move && ((uwep && is_pick(uwep)) ||
                                      (tunnels(URACEDATA) &&
                                       !needspick(URACEDATA)))) {
@@ -2347,7 +2352,7 @@ domove(const struct nh_cmd_arg *arg, enum u_interaction_mode uim,
 
     if (hides_under(URACEDATA))
         u.uundetected = OBJ_AT(u.ux, u.uy);
-    else if (youmonst.data->mlet == S_EEL)
+    else if (youmonst.data->mlet == S_KRAKEN)
         u.uundetected = is_pool(level, u.ux, u.uy) && !Is_waterlevel(&u.uz);
     else if (turnstate.move.dx || turnstate.move.dy)
         u.uundetected = 0;
@@ -2497,8 +2502,10 @@ spoteffects(boolean pick)
             pline(msgc_consequence, "You pop out of the water like a cork!");
         else if (Flying)
             pline(msgc_consequence, "You fly out of the water.");
-        else if (Wwalking)
+        else if (Wwalking) {
             pline(msgc_consequence, "You slowly rise above the surface.");
+            identify_ww_source();
+        }
         else
             goto stillinwater;
         was_underwater = Underwater && !Is_waterlevel(&u.uz);
@@ -2522,8 +2529,12 @@ stillinwater:
             } else if (is_lava(level, u.ux, u.uy)) {
                 if (lava_effects())
                     return;
-            } else if (!Wwalking && drown())
-                return;
+            } else if (!Wwalking) {
+                if (drown())
+                    return;
+            } else {
+                identify_ww_source();
+            }
         } else if (is_puddle(level, u.ux, u.uy) && !Wwalking) {
             /*pline(msgc_consequence, "You %s through the shallow water.",
                     verysmall(youmonst.data) ? "wade" : "splash");
@@ -2548,9 +2559,11 @@ stillinwater:
                 pline_implied(msgc_badidea, "The water burns your flesh!");
                 losehp(dam, killer_msg(DIED, "contact with water"));
             }
-            if (verysmall(URACEDATA))
+            if (verysmall(URACEDATA) &&
+                !u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE))
                 water_damage_chain(invent, FALSE);
-            if (!u.usteed)
+            if (!u.usteed &&
+                !u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE))
                 (void) water_damage(uarmf, "boots", TRUE);
         }
     }
@@ -2816,6 +2829,9 @@ check_special_room(boolean newlev)
                 if (!u.uconduct[conduct_sokoban_guilt])
                     pluslvl(FALSE);
                 historic_event(FALSE, TRUE, "entered the Sokoban zoo.");
+                achievement(achieve_soko_complete);
+            } else if (!In_sokoban(&u.uz)) {
+                achievement(achieve_sproom_zoo);
             }
             break;
         case SWAMP:
@@ -2824,11 +2840,14 @@ check_special_room(boolean newlev)
             break;
         case COURT:
             pline(msgc_levelsound, "You enter an opulent throne room!");
+            achievement(achieve_sproom_throne);
             break;
         case LEPREHALL:
             pline(msgc_levelsound, "You enter a leprechaun hall!");
+            achievement(achieve_sproom_lephall);
             break;
         case DRAGONHALL:
+            achievement(achieve_sproom_dragons);
             pline(msgc_levelsound, "You enter a dragon hall!");
             break;
         case MORGUE:
@@ -2859,7 +2878,7 @@ check_special_room(boolean newlev)
             break;
         case DELPHI:
             if ((mtmp = monstinroom(&mons[PM_ORACLE], roomno)) &&
-                mtmp->mpeaceful) {
+                mtmp->mpeaceful && !Deaf) {
                 verbalize(msgc_npcvoice, "%s, %s, welcome to Delphi!",
                           Hello(NULL), u.uplname);
             }

@@ -303,11 +303,13 @@ wipe_engr_at(struct level *lev, xchar x, xchar y, xchar cnt)
             if (ep->engr_type != DUST && ep->engr_type != ENGR_BLOOD) {
                 cnt = rn2(1 + 50 / (cnt + 1)) ? 0 : 1;
             }
-            wipeout_text(ep->engr_txt, (int)cnt, 0);
-            while (ep->engr_txt[0] == ' ')
-                ep->engr_txt++;
-            if (!ep->engr_txt[0])
-                del_engr(ep, lev);
+            if (cnt > 0) {
+                wipeout_text(ep->engr_txt, (int)cnt, 0);
+                while (ep->engr_txt[0] == ' ')
+                    ep->engr_txt++;
+                if (!ep->engr_txt[0])
+                    del_engr(ep, lev);
+            }
         }
     }
 }
@@ -514,6 +516,7 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
     const char *helpless_endmsg;/* Temporary for helpless end message */
     struct engr *oep = engr_at(level, u.ux, u.uy);
     struct obj *otmp;
+    boolean literate = FALSE;   /* Breaks illiterate conduct and causes cramping */
     int cramps = 0;             /* How much your hand is cramping up from writing */
 
     /* The current engraving */
@@ -807,8 +810,10 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
                         "Splinters fly up from the bridge." :
                         "Gravel flies up from the floor.";
                 }
-                else
+                else if (!Deaf)
                     post_engr_text = "You hear drilling!";
+                else
+                    post_engr_text = "You feel tremors.";
                 break;
 
                 /* type = BURN wands */
@@ -836,8 +841,10 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
                 if (!Blind) {
                     post_engr_text = "Lightning arcs from the wand.";
                     doblind = TRUE;
-                } else
+                } else if (!Deaf)
                     post_engr_text = "You hear crackling!";
+                else
+                    post_engr_text = "Your hair stands up!";
                 break;
             
                 /* type = MARK wands */
@@ -1124,8 +1131,10 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
     }
 
     /* A single `x' is the traditional signature of an illiterate person */
-    if (len != 1 || (!strchr(ebuf, 'x') && !strchr(ebuf, 'X')))
+    if (len != 1 || (!strchr(ebuf, 'x') && !strchr(ebuf, 'X'))) {
+        literate = TRUE;
         break_conduct(conduct_illiterate);
+    }
 
     /* Degrade any existing text: */
     u_wipe_engr(rnd(3));
@@ -1146,10 +1155,11 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
                              rng_cramps) < u.ucramps) ||
             (Blind && !rn2(11)) || (Confusion && !rn2(7)) ||
             (Stunned && !rn2(4)) || (Hallucination && !rn2(2))) {
-            if (ABASE(A_CON) <= 3)
+            if ((ABASE(A_CON) <= 3) || Fixed_abil)
                 *sp = ' ' + rnd(96 - 2);
                 /* ASCII '!' thru '~' (excludes ' ' and DEL) */
-            cramps++;
+            if (literate)
+                cramps++;
         }
     }
     if ((Blind || Confusion || Hallucination || Stunned) && (cramps > 0))
@@ -1168,7 +1178,7 @@ doengrave_core(const struct nh_cmd_arg *arg, int auto_elbereth)
     else if (cramps > 0)
         pline(msgc_yafm, "Your writing %s is beginning to cramp.",
               body_part(HAND));
-    if (cramps && (ABASE(A_CON) > 3)) {
+    if (cramps && (ABASE(A_CON) > 3) && !Fixed_abil) {
         ABASE(A_CON)--;
         u.amax.a[A_CON]--;
         pline(msgc_intrloss, "You manage to get your message written, "

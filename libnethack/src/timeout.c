@@ -294,9 +294,8 @@ nh_timeout(void)
                 done(POISONING, delayed_killer(POISONING));
                 break;
             case FAST:
-                if (!Very_fast)
-                    pline(msgc_statusend, "You feel yourself slowing down%s.",
-                          Fast ? " a bit" : "");
+                pline(msgc_statusend, "You feel yourself slowing down%s.",
+                      (Very_fast || Fast) ? " a bit" : "");
                 break;
             case CONFUSION:
                 HConfusion = 1; /* So make_confused works properly */
@@ -311,6 +310,11 @@ nh_timeout(void)
             case BLINDED:
                 Blinded = 1;
                 make_blinded(0L, TRUE);
+                action_interrupted();
+                break;
+            case DEAF:
+                if (!Deaf)
+                    pline(msgc_statusheal, "You can hear again.");
                 action_interrupted();
                 break;
             case INVIS:
@@ -498,12 +502,14 @@ hatch_egg(void *arg, long timeout)
             else
                 pline(msgc_youdiscover, "You see %s %s out of your pack!",
                       monnambuf, locomotion(mon->data, "drop"));
-            if (yours) {
-                pline(msgc_petneutral, "%s cries sound like \"%s%s\"",
-                      siblings ? "Their" : "Its",
-                      u.ufemale ? "mommy" : "daddy", egg->spe ? "." : "?");
-            } else if (mon->data->mlet == S_DRAGON) {
-                verbalize(msgc_npcvoice, "Gleep!");    /* Mything eggs :-) */
+            if (canhear()) {
+                if (yours) {
+                    pline(msgc_petneutral, "%s cries sound like \"%s%s\"",
+                          siblings ? "Their" : "Its",
+                          u.ufemale ? "mommy" : "daddy", egg->spe ? "." : "?");
+                } else if (mon->data->mlet == S_DRAGON) {
+                    verbalize(msgc_npcvoice, "Gleep!"); /* Mything eggs :-) */
+                }
             }
             break;
 
@@ -1188,8 +1194,10 @@ do_storms(void)
     }
 
     if (level->locations[u.ux][u.uy].typ == CLOUD) {
-        /* inside a cloud during a thunder storm is deafening */
+        /* Being inside  a cloud during a  thunder storm is deafening.
+           Even if already deaf, we sense the thunder's vibrations. */
         pline(msgc_statusbad, "Kaboom!!!  Boom!!  Boom!!");
+        incr_itimeout(&HDeaf, rn1(20,30));
         if (!u.uinvulnerable)
             helpless(3, hr_afraid, "hiding from a thunderstorm", NULL);
     } else

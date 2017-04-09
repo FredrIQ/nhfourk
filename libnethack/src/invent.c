@@ -873,6 +873,7 @@ object_selection_checks(struct obj *otmp, const char *word)
     /* cblock controls whether we allow equip commands that require removing
        other items temporarily. */
     boolean cblock = flags.cblock;
+    const char *dscr;
 
     /* Check to see if equipping/unequipping is known to be unreasonable, either
        because the object is inappropriate or the slot is blocked by a cursed
@@ -931,7 +932,12 @@ object_selection_checks(struct obj *otmp, const char *word)
           (otmp->oclass == GEM_CLASS && !is_graystone(otmp)))) ||
         (!strcmp(word, "read") &&
          (otmp->oclass != SCROLL_CLASS && otmp->oclass != SPBOOK_CLASS &&
-          otyp != FORTUNE_COOKIE && otyp != T_SHIRT)) ||
+          otyp != FORTUNE_COOKIE && otyp != T_SHIRT &&
+          (otmp->oclass != RING_CLASS || (!(dscr = OBJ_DESCR(objects[otyp]))) ||
+                                         (strcmp(dscr, "mood") &&
+                                          strcmp(dscr, "signet") &&
+                                          strcmp(dscr, "intaglio") &&
+                                          strcmp(dscr, "class"))))) ||
         (!strcmp(word, "untrap with") &&
          (otmp->oclass == TOOL_CLASS && otyp != CAN_OF_GREASE)) ||
         (!strcmp(word, "charge") &&
@@ -1277,6 +1283,21 @@ is_worn(const struct obj * otmp)
 /*
  * Object identification routines:
  */
+
+/* The player character discovers that they can walk on water.
+
+   For the time being, water walking boots are the only extrinsic source of this
+   and cannot be worn by anything that can water walk intrinsically, so we can
+   pretty much unconditionally ID them.
+*/
+void identify_ww_source(void)
+{
+    /* Let's be slightly paranoid about this, just in case: */
+    if (uarmf && uarmf->otyp == WATER_WALKING_BOOTS &&
+        !objects[uarmf->otyp].oc_name_known) {
+        makeknown(uarmf->otyp);
+    }
+}
 
 /* make an object actually be identified; no display updating */
 void

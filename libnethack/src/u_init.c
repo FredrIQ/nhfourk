@@ -254,11 +254,6 @@ static const struct trobj Shuri[] = {
     {0, 0, 0, 0, 0}
 };
 
-static const struct trobj Coldwand[] = {
-    {WAN_COLD, UNDEF_SPE, WAND_CLASS, 1, UNDEF_BLESS},
-    {0, 0, 0, 0, 0}
-};
-
 static struct trobj PBook[] = {
     {SPE_LIGHT, 0, SPBOOK_CLASS, 1, UNDEF_BLESS},
     {0, 0, 0, 0, 0}
@@ -349,7 +344,7 @@ static const struct inv_sub {
     {PM_SCURRIER, ARROW, DART},
     {PM_SCURRIER, FEDORA, LEATHER_GLOVES},
     /* Giants are too large for a lot of armor */
-    {PM_GIANT, RING_MAIL, HELMET},                 /* Bar Gia */
+    {PM_GIANT, RING_MAIL, DENTED_POT},             /* Bar Gia */
     {PM_GIANT, LEATHER_ARMOR, FLINT},              /* Cav Gia */
     {PM_GIANT, BOW, SLING},                        /* Ran Gia */
     {PM_GIANT, ARROW, FLINT},                      /*  ditto */
@@ -839,6 +834,9 @@ u_init_inv_skills(void)
         u.umoney0 = 0;
         role_ini_inv(trobj_list, nclist);
         knows_object(SACK);
+        knows_object(STURDY_KEY);
+        knows_object(DOOR_KEY);
+        knows_object(IRON_KEY);
         skill_init(Skill_R);
         /* TODO:  confer basic skill in P_STEALTH */
         augment_magic_chest_contents(DAGGER, 0, 3);

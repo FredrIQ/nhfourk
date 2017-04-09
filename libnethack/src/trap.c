@@ -150,7 +150,8 @@ erode_obj(struct obj *otmp, const char *ostr, enum erode_type type,
         }
         break;
     case ERODE_RUST:
-        vulnerable = is_rustprone(otmp);
+        vulnerable = is_rustprone(otmp) &&
+            !(victim && m_has_property(victim, PROT_WATERDMG, ANY_PROPERTY, 0));
         break;
     case ERODE_ROT:
         vulnerable = is_rottable(otmp);
@@ -922,39 +923,48 @@ dotrap(struct trap *trap, unsigned trflags)
         case 0:
             pline(msgc_nonmonbad, "%s you on the %s!", A_gush_of_water_hits,
                   body_part(HEAD));
-            water_damage(uarmh, maybe_helmet_name(uarmh), TRUE);
+            if (!u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE))
+                water_damage(uarmh, maybe_helmet_name(uarmh), TRUE);
             break;
         case 1:
             pline(msgc_nonmonbad, "%s your left %s!", A_gush_of_water_hits,
                   body_part(ARM));
-            if (water_damage(uarms, "shield", TRUE))
-                break;
-            if (u.twoweap || (uwep && bimanual(uwep)))
-                water_damage(u.twoweap ? uswapwep : uwep, NULL, TRUE);
-        glovecheck:
-            water_damage(uarmg, "gauntlets", TRUE);
-            /* Not "metal gauntlets" since it gets called even if it's leather
-               for the message */
+            if (!u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE)) {
+                if (water_damage(uarms, "shield", TRUE))
+                    break;
+                if (u.twoweap || (uwep && bimanual(uwep)))
+                    water_damage(u.twoweap ? uswapwep : uwep, NULL, TRUE);
+            glovecheck:
+                water_damage(uarmg, "gauntlets", TRUE);
+                /* Not "metal gauntlets" since it gets called even if it's leather
+                   for the message */
+            }
             break;
         case 2:
             pline(msgc_nonmonbad, "%s your right %s!", A_gush_of_water_hits,
                   body_part(ARM));
-            water_damage(uwep, NULL, TRUE);
-            goto glovecheck;
+            if (!u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE)) {
+                water_damage(uwep, NULL, TRUE);
+                goto glovecheck;
+            }
+            break;
         default:
             pline(msgc_nonmonbad, "%s you!", A_gush_of_water_hits);
-            for (otmp = invent; otmp; otmp = otmp->nobj)
-                snuff_lit(otmp);
-            if (uarmc)
-                water_damage(uarmc, cloak_simple_name(uarmc), TRUE);
-            else if (uarm)
-                water_damage(uarm, "armor", TRUE);
-            else if (uarmu)
-                water_damage(uarmu, "shirt", TRUE);
+            if (!u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE)) {
+                for (otmp = invent; otmp; otmp = otmp->nobj)
+                    snuff_lit(otmp);
+                if (uarmc)
+                    water_damage(uarmc, cloak_simple_name(uarmc), TRUE);
+                else if (uarm)
+                    water_damage(uarm, "armor", TRUE);
+                else if (uarmu)
+                    water_damage(uarmu, "shirt", TRUE);
+            }
         }
         update_inventory();
 
-        if (u.umonnum == PM_IRON_GOLEM) {
+        if (u.umonnum == PM_IRON_GOLEM &&
+            !u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE)) {
             int dam = u.mhmax;
 
             pline(msgc_nonmonbad, "You are covered with rust!");
@@ -1913,6 +1923,13 @@ mintrap(struct monst *mtmp)
         } else {
             mtmp->mtrapseen |= (1 << (tt - 1));
         }
+
+        /* Rangers get points for trapping hostiles; Cavemen if it's a pit. */
+        if (trap->madeby_u && (!mtmp->mpeaceful) &&
+            ((Role_if(PM_CAVEMAN) && (tt == PIT)) || Role_if(PM_RANGER)) &&
+            !rn2_on_rng(1 + abs(u.ualign.record), rng_role_alignment))
+            adjalign(1);
+        else
         /* Monster is aggravated by being trapped by you. Recognizing who made
            the trap isn't completely unreasonable; everybody has their own
            style. */
@@ -2049,7 +2066,8 @@ mintrap(struct monst *mtmp)
                               "%s %s on the %s!", A_gush_of_water_hits,
                               mon_nam(mtmp), mbodypart(mtmp, HEAD));
                     target = which_armor(mtmp, os_armh);
-                    water_damage(target, maybe_helmet_name(target), TRUE);
+                    if (!m_has_property(mtmp, PROT_WATERDMG, ANY_PROPERTY, FALSE))
+                        water_damage(target, maybe_helmet_name(target), TRUE);
                     break;
                 case 1:
                     if (in_sight)
@@ -2057,23 +2075,29 @@ mintrap(struct monst *mtmp)
                               "%s %s's left %s!", A_gush_of_water_hits,
                               mon_nam(mtmp), mbodypart(mtmp, ARM));
                     target = which_armor(mtmp, os_arms);
-                    if (water_damage(target, "shield", TRUE))
-                        break;
-                    target = MON_WEP(mtmp);
-                    if (target && bimanual(target))
-                        water_damage(target, NULL, TRUE);
-                glovecheck:
-                    target =
-                        which_armor(mtmp, os_armg);
-                    water_damage(target, "gauntlets", TRUE);
+                    if (!m_has_property(mtmp, PROT_WATERDMG,
+                                        ANY_PROPERTY, FALSE)) {
+                        if (water_damage(target, "shield", TRUE))
+                            break;
+                        target = MON_WEP(mtmp);
+                        if (target && bimanual(target))
+                            water_damage(target, NULL, TRUE);
+                    glovecheck:
+                        target = which_armor(mtmp, os_armg);
+                        water_damage(target, "gauntlets", TRUE);
+                    }
                     break;
                 case 2:
                     if (in_sight)
                         pline(combat_msgc(culprit, mtmp, cr_hit),
                               "%s %s's right %s!", A_gush_of_water_hits,
                               mon_nam(mtmp), mbodypart(mtmp, ARM));
-                    water_damage(MON_WEP(mtmp), NULL, TRUE);
-                    goto glovecheck;
+                    if (!m_has_property(mtmp, PROT_WATERDMG,
+                                        ANY_PROPERTY, FALSE)) {
+                        water_damage(MON_WEP(mtmp), NULL, TRUE);
+                        goto glovecheck;
+                    }
+                    break;
                 default:
                     if (in_sight)
                         pline(combat_msgc(culprit, mtmp, cr_hit), "%s %s!",
@@ -2081,19 +2105,24 @@ mintrap(struct monst *mtmp)
                     for (otmp = mtmp->minvent; otmp; otmp = otmp->nobj)
                         snuff_lit(otmp);
                     target = which_armor(mtmp, os_armc);
-                    if (target)
-                        water_damage(target, cloak_simple_name(target), TRUE);
-                    else {
-                        target = which_armor(mtmp, os_arm);
+                    if (!m_has_property(mtmp, PROT_WATERDMG,
+                                        ANY_PROPERTY, FALSE)) {
                         if (target)
-                            water_damage(target, "armor", TRUE);
+                            water_damage(target,
+                                         cloak_simple_name(target), TRUE);
                         else {
-                            target = which_armor(mtmp, os_armu);
-                            water_damage(target, "shirt", TRUE);
+                            target = which_armor(mtmp, os_arm);
+                            if (target)
+                                water_damage(target, "armor", TRUE);
+                            else {
+                                target = which_armor(mtmp, os_armu);
+                                water_damage(target, "shirt", TRUE);
+                            }
                         }
                     }
                 }
-                if (mptr == &mons[PM_IRON_GOLEM]) {
+                if (mptr == &mons[PM_IRON_GOLEM] &&
+                    !m_has_property(mtmp, PROT_WATERDMG, ANY_PROPERTY, FALSE)) {
                     if (in_sight)
                         pline(combat_msgc(culprit, mtmp, cr_kill),
                               "%s falls to pieces!", Monnam(mtmp));
@@ -2390,18 +2419,19 @@ mintrap(struct monst *mtmp)
                     if (lev == level)
                         newsym(mtmp->mx, mtmp->my);
                     pline(combat_msgc(culprit, mtmp, cr_hit),
-                          "KAABLAMM!!!  %s triggers %s land mine!",
+                          "%s%s triggers %s land mine!",
+                          (!Deaf ? "KAABLAMM!!!  " : ""),
                           Monnam(mtmp), a_your[trap->madeby_u]);
                 }
-                if (!in_sight)
+                if (!in_sight && !Deaf)
                     pline(msgc_levelsound,
                           "Kaablamm!  You hear an explosion in the distance!");
                 blow_up_landmine(trap);
                 if (DEADMONSTER(mtmp))
                     trapkilled = TRUE;
-                else if (thitm(0, mtmp, NULL, rnd(16), FALSE))
+                else if (thitm(0, mtmp, NULL, rnd(16), FALSE)) {
                     trapkilled = TRUE;
-                else {
+                } else {
                     /* monsters recursively fall into new pit */
                     if (mintrap(mtmp) == 2)
                         trapkilled = TRUE;
@@ -2882,6 +2912,7 @@ domagictrap(void)
         /* Most of the time, it creates some monsters. */
         int cnt = rnd(4);
 
+        /* blindness effects */
         if (!resists_blnd(&youmonst)) {
             pline(msgc_statusbad,
                   "You are momentarily blinded by a flash of light!");
@@ -2890,8 +2921,16 @@ domagictrap(void)
                 pline(msgc_statusheal, "Your vision quickly clears.");
         } else if (!Blind) {
             pline(msgc_levelwarning, "You see a flash of light!");
-        } else
+        }
+
+        if (!Deaf) {
             You_hear(msgc_levelwarning, "a deafening roar!");
+            incr_itimeout(&HDeaf, rn1(20,30));
+        } else {
+            /* magic vibrations still hit you */
+            pline(msgc_statusbad, "You feel rankled.");
+            incr_itimeout(&HDeaf, rn1(5, 15));
+        }
         /* Use the "create monster used by monster" RNG for the species; the
            other option is the "random monster generation on this level" RNG,
            but I don't like that one as much; it's rather about what we want to
@@ -3133,14 +3172,19 @@ water_damage(struct obj * obj, const char *ostr, boolean force)
         if (carried(obj))
             update_inventory();
         return 1;
-    } else if (Is_container(obj) && !Is_box(obj) &&
-                (obj->otyp != OILSKIN_SACK || (obj->cursed && !rn2(3)))) {
+    } else if (Is_container(obj) &&
+               (obj->otyp != ICE_BOX) &&
+               ((obj->otyp != BAG_OF_HOLDING && !Is_box(obj)) ||
+                ((!obj->blessed) && !rn2(obj->cursed ? 2 : 5))) &&
+               (obj->otyp != OILSKIN_SACK || (obj->cursed && !rn2(3)))) {
         water_damage_chain(obj->cobj, FALSE);
         return 0;
     } else if (!force && (Luck + 5) > rn2(20)) {
         /* chance per item of sustaining damage: max luck (full moon): 5%
             max luck (elsewhen): 10% avg luck (Luck==0): 75% awful luck
             (Luck<-4): 100% */
+        return 0;
+    } else if (obj->oerodeproof) {
         return 0;
     } else if (obj->oclass == SCROLL_CLASS) {
         obj->otyp = SCR_BLANK_PAPER;
@@ -3256,6 +3300,7 @@ boolean
 drown(void)
 {
     boolean inpool_ok = FALSE, crawl_ok;
+    boolean immune = u_have_property(PROT_WATERDMG, ANY_PROPERTY, FALSE);
     int i, x, y;
 
     /* happily wading in the same contiguous pool */
@@ -3272,16 +3317,25 @@ drown(void)
         pline(msgc_statusbad, "You %s into the water%c",
               Is_waterlevel(&u.uz) ? "plunge" : "fall", Amphibious ||
               Swimming ? '.' : '!');
-        if (!Swimming && !Is_waterlevel(&u.uz))
+        if (immune && !Is_waterlevel(&u.uz)) {
+            pline_implied(msgc_playerimmune, "You float like %s.",
+                          Hallucination ? ((getmonth() == 4 && getmday() == 9)
+                                           ? "a witch" : "a duck") : "ice");
+            if (!Swimming && !Amphibious) {
+                pline_implied(msgc_statusbad,
+                              "Nonetheless, you still don't know how to swim.");
+            }
+        } else if (!Swimming && !Is_waterlevel(&u.uz))
             pline_implied(msgc_statusbad, "You sink like %s.",
                           Hallucination ? "the Titanic" : "a rock");
     }
 
-    water_damage_chain(invent, FALSE);
+    if (!immune)
+        water_damage_chain(invent, FALSE);
 
     if (u.umonnum == PM_GREMLIN && rn2(3))
         split_mon(&youmonst, NULL);
-    else if (u.umonnum == PM_IRON_GOLEM) {
+    else if (u.umonnum == PM_IRON_GOLEM && !immune) {
         pline(msgc_statusbad, "You rust!");
         i = dice(2, 6);
         if (u.mhmax > i)
@@ -3306,7 +3360,7 @@ drown(void)
                 if (Hallucination)
                     pline_implied(msgc_consequence,
                                   "Your keel hits the bottom.");
-                else
+                else if (!immune)
                     pline_implied(msgc_consequence, "You touch bottom.");
             }
         }
@@ -3320,9 +3374,8 @@ drown(void)
         turnstate.vision_full_recalc = TRUE;
         return FALSE;
     }
-    /* TODO: Isn't this u_helpless check backwards? */
     if ((Teleportation || can_teleport(youmonst.data)) &&
-        u_helpless(hm_unconscious) && (Teleport_control || rn2(3) < Luck + 2)) {
+        !u_helpless(hm_unconscious) && (Teleport_control || rn2(3) < Luck + 2)) {
         pline(msgc_consequence,
               "You attempt a teleport spell."); /* utcsri!carroll */
         if (!level->flags.noteleport) {

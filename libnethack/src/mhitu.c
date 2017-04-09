@@ -97,6 +97,8 @@ weaphitmsg(struct obj *obj, struct monst *magr)
     boolean uhitm = (boolean) (magr == &youmonst);
     if (Hallucination)
         return halluhitverb(uhitm);
+    if (is_launcher(obj) || !is_wep(obj))
+        return uhitm ? "bash" : "bashes";
     if (objects[obj->otyp].oc_dir & WHACK &&
         (!(objects[obj->otyp].oc_dir & PIERCE) || rn2(2))) {
         if (objects[obj->otyp].oc_skill == P_CLUB)
@@ -156,6 +158,8 @@ barehitmsg(struct monst *mtmp)
         return thirdperson ? "touches" : "touch";
     if (nohands(mtmp->data)) /* e.g. rothes shouldn't punch */
         return thirdperson ? "claws" : "claw";
+    if (mtmp->data == &mons[PM_QUANTUM_MECHANIC])
+        return thirdperson ? "interacts with" : "interact with";
     return thirdperson ? "punches" : "punch";
 }
 
@@ -503,7 +507,7 @@ mattacku(struct monst *mtmp)
                 struct obj *obj = level->objects[u.ux][u.uy];
 
                 if (obj ||
-                    (youmonst.data->mlet == S_EEL &&
+                    (youmonst.data->mlet == S_KRAKEN &&
                      is_pool(level, u.ux, u.uy))) {
                     int save_spe = 0;   /* suppress warning */
 
@@ -512,7 +516,7 @@ mattacku(struct monst *mtmp)
                         if (obj->otyp == EGG)
                             obj->spe = 0;
                     }
-                    if (youmonst.data->mlet == S_EEL)
+                    if (youmonst.data->mlet == S_KRAKEN)
                         pline(msgc_youdiscover,
                               "Wait, %s!  There's a hidden %s named %s there!",
                               m_monnam(mtmp), youmonst.data->mname, u.uplname);
@@ -579,7 +583,7 @@ mattacku(struct monst *mtmp)
         tmp = 1;
 
     /* make eels visible the moment they hit/miss us */
-    if (mdat->mlet == S_EEL && mtmp->minvis && cansee(mtmp->mx, mtmp->my)) {
+    if (mdat->mlet == S_KRAKEN && mtmp->minvis && cansee(mtmp->mx, mtmp->my)) {
         mtmp->minvis = 0;
         newsym(mtmp->mx, mtmp->my);
     }
@@ -934,7 +938,7 @@ hitmu(struct monst *mtmp, const struct attack *mattk)
 
     /* If the monster is undetected & hits you, you should know where the attack
        came from. */
-    if (mtmp->mundetected && (hides_under(mdat) || mdat->mlet == S_EEL)) {
+    if (mtmp->mundetected && (hides_under(mdat) || mdat->mlet == S_KRAKEN)) {
         mtmp->mundetected = 0;
         if (!(Blind ? Blind_telepat : Unblind_telepat)) {
             struct obj *obj;
@@ -1005,9 +1009,9 @@ hitmu(struct monst *mtmp, const struct attack *mattk)
                    polymorphed and polymorph gives protection against HP
                    damage). msgc_statusbad makes sense, treating the "extra
                    damage" as a status effect. */
-                if (objects[otmp->otyp].oc_material == SILVER &&
-                    hates_silver(youmonst.data))
-                    pline(msgc_statusbad, "The silver sears your flesh!");
+                if (hates_material(URACEDATA, objects[otmp->otyp].oc_material))
+                    pline(msgc_statusbad, "The %s sears your flesh!",
+                          material_name(objects[otmp->otyp].oc_material));
 
                 if (dmg <= 0)
                     dmg = 1;
@@ -1644,7 +1648,7 @@ hitmu(struct monst *mtmp, const struct attack *mattk)
             
         } else {
             if (Role_if(PM_HEALER)) {
-                if (!(moves % 5))
+                if (canhear() && !(moves % 5))
                     verbalize(msgc_hint,
                               "Doc, I can't help you unless you cooperate.");
                 dmg = 0;
@@ -1662,7 +1666,7 @@ hitmu(struct monst *mtmp, const struct attack *mattk)
                    a much higher one */
                 if (Blind)
                     You_hear(msgc_levelwarning, "laughter.");
-                else
+                else if (canhear())
                     pline_implied(combat_msgc(mtmp, &youmonst, cr_hit),
                                   "%s chuckles.", Monnam(mtmp));
             }
@@ -2613,8 +2617,9 @@ doseduce(struct monst *mon)
         mayberem(uarmu, "shirt");
 
     if ((uarm && !uskin()) || uarmc) {
-        verbalize(msgc_npcvoice, "You're such a %s; I wish...",
-                  u.ufemale ? "sweet lady" : "nice guy");
+        if (canhear())
+            verbalize(msgc_npcvoice, "You're such a %s; I wish...",
+                      u.ufemale ? "sweet lady" : "nice guy");
         if (!tele_restrict(mon))
             rloc(mon, TRUE, level);
         return 1;
@@ -2749,7 +2754,7 @@ doseduce(struct monst *mon)
         }
         if (cost > umoney)
             cost = umoney;
-        if (!cost)
+        if (canhear() && !cost)
             verbalize(msgc_moncombatgood, "It's on the house!");
         else {
             pline(msgc_itemloss, "%s takes %ld %s for services rendered!",
@@ -2775,9 +2780,9 @@ mayberem(struct obj *obj, const char *str)
     if (rn2(20) < ACURR(A_CHA)) {
         qbuf = msgprintf("\"Shall I remove your %s, %s?\"", str,
                          (!rn2(2) ? "lover" : !rn2(2) ? "dear" : "sweetheart"));
-        if (yn(qbuf) == 'n')
+        if (canhear() && (yn(qbuf) == 'n'))
             return;
-    } else {
+    } else if (!Deaf) {
         const char *hairbuf;
 
         hairbuf = msgprintf("let me run my fingers through your %s",

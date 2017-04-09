@@ -128,6 +128,8 @@ encode_uevent(void)
         c |= 0x4000UL;  /* defeated Rodney */
     if (mvitals[PM_HIGH_PRIEST].died)
         c |= 0x8000UL;  /* defeated a high priest */
+    if (mvitals[PM_DEMOGORGON].died)
+        c |= 0xF000UL;  /* defeated Demogorgon */
 
     /* notable other events */
     if (u.uevent.uhand_of_elbereth)
@@ -180,15 +182,28 @@ encode_birthoptions(void)
         c |= 0x0002UL;
     if (flags.seduce_enabled)
         c |= 0x0004UL;
-    if (flags.bones_enabled)
+    if (flags.bones_enabled != bones_disabled)
         c |= 0x0008UL;
     if (flags.permablind)
         c |= 0x0010UL;
     if (flags.permahallu)
         c |= 0x0020UL;
-    /* leaving bits open here for permaconf and one other impairment */
+    if (flags.permaconf)
+        c |= 0x0040UL;
+    if (flags.permastun)
+        c |= 0x0080UL;
     if (flags.polyinit_mnum != -1)
         c |= 0x0100UL;
+    if (flags.permaglib)
+        c |= 0x0200UL;
+    if (flags.permafumble)
+        c |= 0x0400UL;
+    if (flags.permalame)
+        c |= 0x0800UL;
+    if (flags.permabadluck)
+        c |= 0x1000UL;
+    if (flags.bones_enabled == bones_anywhere)
+        c |= 0x2000UL;
 
     return c;
 }

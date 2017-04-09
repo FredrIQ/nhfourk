@@ -69,6 +69,11 @@ doread(const struct nh_cmd_arg *arg)
             "Hey, black dragon!  Disintegrate THIS!",
             "I'm With Stupid -->",
             "Don't blame me, I voted for Izchak!",
+            "Yendor Academy of Alchemy, Class of '47",
+            "Zombies aren't so tough. I'm more scared of an archon apocalypse.",
+            "Owlbears:  All they want is a hug.  Is that so bad?",
+            "Frobozz Magic Shirt Company", /* Quendor */
+            "It's All About the Flatheads", /* i.e., the zorkmids */
             "Don't Panic",      /* HHGTTG */
             "Furinkan High School Athletic Dept.",      /* Ranma 1/2 */
             "Hel-LOOO, Nurse!", /* Animaniacs */
@@ -94,6 +99,76 @@ doread(const struct nh_cmd_arg *arg)
                               scroll->o_id ^ (unsigned)u.ubirthday);
         pline(msgc_info, "\"%s\"", buf);
         return 1;
+    } else if (scroll->oclass == RING_CLASS) {
+        const char *dscr = OBJ_DESCR(objects[scroll->otyp]);
+        if (Blind) {
+            pline(msgc_cancelled, "Being blind, you cannot read the %s.",
+                  ((!strcmp(dscr, "mood")) ? "stone's color" :
+                   (!strcmp(dscr, "class")) ? "year" : "engraving"));
+            return 0;
+        }
+        if (!strcmp(dscr, "mood")) {
+            if (scroll != EQUIP(os_ringl) && scroll != EQUIP(os_ringr)) {
+                pline(msgc_actionboring, "The stone is %s.", hcolor("black"));
+            } else {
+                pline(msgc_info, "The stone is %s.", hcolor(
+                          scroll->cursed ? "purple" :
+                          u.ualign.record >= 14 ? "green"  :
+                          u.ualign.record >=  4 ? "yellow" :
+                          u.ualign.record >=  1 ? "orange" : "red"));
+            }
+            return 1;
+        } else if (!strcmp(dscr, "class")) {
+            break_conduct(conduct_illiterate);
+            pline(msgc_actionok, "Yendor Academy, Class of '%02d",
+                  (scroll->o_id % 100));
+            return 1;
+        } else if ((!strcmp(dscr, "intaglio")) ||
+                   (!strcmp(dscr, "signet"))) {
+            const char *const ring_engr[] = {
+                "the symbol of House Dyne", /* Jackson's Whole */
+                "the griffin of House Harkonnen", /* Dune */
+                "the personal sigil of Croesus", /* Fort Ludios */
+                "the Frobozz Magic Ring Company logo", /* Quendor / GUE */
+                "a heptagram", /* AceHack, dNetHack */
+                "the elemental symbol of earth",
+                "the elemental symbol of water",
+                "the elemental symbol of air",
+                "the elemental symbol of fire",
+                "the elemental symbol of aether",
+                "a likeness of the original owner",
+                "a likeness of the original owner's spouse",
+                "a likeness of the original owner's father",
+                "a likeness of the original owner's mother",
+                "the ring maker's mark",
+                "the ring makers' guild's seal of quality",
+                "a ward against nightmares",
+                "a ward against boils and bedsores",
+                "a ward against the destruction of the universe",
+                "a ward against bad morale",
+                msgprintf("an alchemical formula: %s + %s => %s",
+                          OBJ_DESCR(objects[POT_HEALING]),
+                          OBJ_DESCR(objects[POT_SPEED]),
+                          OBJ_DESCR(objects[POT_FULL_HEALING])),
+                msgprintf("an alchemical formula: %s + %s => %s",
+                          OBJ_DESCR(objects[POT_HEALING]),
+                          OBJ_DESCR(objects[POT_GAIN_LEVEL]),
+                          OBJ_DESCR(objects[POT_EXTRA_HEALING])),
+                msgprintf("an alchemical formula: %s + %s => %s",
+                          OBJ_DESCR(objects[POT_FULL_HEALING]),
+                          OBJ_DESCR(objects[POT_GAIN_ENERGY]),
+                          OBJ_DESCR(objects[POT_GAIN_ABILITY])),
+            };
+            break_conduct(conduct_illiterate);
+            pline(msgc_actionok, "The %s is engraved with %s.",
+                  (!strcmp(dscr, "intaglio") ?
+                   "underside of the stone" : "face of the ring"),
+                  ring_engr[scroll->o_id % SIZE(ring_engr)]);
+            return 1;
+        } else {
+            pline(msgc_cancelled, "This ring bears no inscription.");
+            return 0;
+        }
     } else if (scroll->oclass != SCROLL_CLASS &&
                scroll->oclass != SPBOOK_CLASS) {
         pline(msgc_cancelled, "That is a silly thing to read.");
@@ -263,8 +338,11 @@ recharge(struct obj *obj, int curse_bless)
          */
         n = (int)obj->recharged;
         if (obj->otyp == WAN_WISHING) { /* never recharge these */
-            verbalize(msgc_itemloss,
-                      "Ixnay on the wishing for more wishes.");
+            if (!Deaf)
+                verbalize(msgc_itemloss,
+                          "Ixnay on the wishing for more wishes.");
+            else
+                pline(msgc_itemloss, "Nothing seems to happen.");
             return;
         } else if ((n > 0) && (n * n * n > rn2(7 * 7 * 7))) {
             /* recharge_limit */
@@ -854,20 +932,69 @@ seffects(struct obj *sobj, boolean *known)
             special_armor = is_elven_armor(otmp) || (Role_if(PM_WIZARD) &&
                                                      otmp->otyp == CORNUTHAUM);
             if (sobj->cursed)
-                same_color = (otmp->otyp == BLACK_DRAGON_SCALE_MAIL ||
-                              otmp->otyp == BLACK_DRAGON_SCALES);
+                same_color = (otmp->otyp == BLACK_DRAGON_SCALES ||
+                              otmp->scalecolor == DRAGONCOLOR_BLACK);
             else
-                same_color = (otmp->otyp == SILVER_DRAGON_SCALE_MAIL ||
+                same_color = (otmp->scalecolor == DRAGONCOLOR_SILVER ||
                               otmp->otyp == SILVER_DRAGON_SCALES ||
                               otmp->otyp == SHIELD_OF_REFLECTION);
             if (Blind)
                 same_color = FALSE;
 
-            /* a custom RNG for this would only give marginal benefits:
-               intentional overenchantment attemps are rare */
-
             /* KMH -- catch underflow */
             s = sobj->cursed ? -otmp->spe : otmp->spe;
+
+            /* If you are wearing dragon scales over body armor, the armor
+               becomes scaled.  This overrides the random choice of which armor
+               to enchant.  The code for this makes some assumptions about the
+               order of the dragons, their scales, and the dragoncolor enum. */
+            if (uarmc && uarmc->otyp >= FIRST_DRAGON_SCALES &&
+                uarmc->otyp <= LAST_DRAGON_SCALES && uarm) {
+                int clr = DRAGONCOLOR_FIRST +
+                    (uarmc->otyp - FIRST_DRAGON_SCALES);
+                struct obj *armor  = uarm;
+                struct obj *scales = uarmc;
+                enum msg_channel msgc_scaleevap = msgc_consequence;
+                if (armor->scalecolor == clr) {
+                    msgc_scaleevap = msgc_itemloss;
+                    pline(msgc_itemrepair, /* for lack of a better channel */
+                          "The scaly sheen on your %s still seems %s.",
+                          xname(armor), hcolor(DRAGONCOLOR_NAME(clr)));
+                }
+                else if (uarm->scalecolor)
+                    pline(msgc_itemrepair, /* there's no itemneutral */
+                          "The scaly sheen on your %s changes from %s to %s.",
+                          xname(armor),
+                          hcolor(DRAGONCOLOR_NAME(armor->scalecolor)),
+                          hcolor(DRAGONCOLOR_NAME(clr)));
+                else
+                    pline(msgc_itemrepair,
+                          "Your %s acquires an interesting %s scaly sheen!",
+                          xname(uarm), hcolor(DRAGONCOLOR_NAME(clr)));
+                setworn(NULL, W_MASK(os_arm));
+                setworn(NULL, W_MASK(os_armc));
+                armor->scalecolor = clr;
+                armor->oerodeproof = 1; /* Dragon scales are impervious to fire
+                                           and other such forms of damage.
+                                           Armor surfaced with scales, too. */
+                armor->rknown = 1; /* The scales are quite obvious, both
+                                      visually and to tactile inspection. */
+                armor->cursed = 0;
+                if (sobj->blessed) {
+                    armor->oeroded = armor->oeroded2 = 0;
+                    armor->blessed = 1;
+                }
+                setworn(armor, W_MASK(os_arm));
+                *known = TRUE;
+                if (scales->unpaid && s > 0)
+                    adjust_bill_val(scales);
+                pline_implied(msgc_scaleevap, "The scales have been absorbed.");
+                useup(scales);
+                break;
+            }
+
+            /* a custom RNG for this would only give marginal benefits:
+               intentional overenchantment attemps are rare */
             if (s > (special_armor ? 5 : 3) && rn2(s)) {
                 pline(msgc_itemloss,
                       "Your %s violently %s%s%s for a while, then %s.",
@@ -895,25 +1022,12 @@ seffects(struct obj *sobj, boolean *known)
                 s = 4 + rn2_on_rng(2, rng_armor_ench_4_5) - otmp->spe;
             if (s < 0 && otmp->unpaid)
                 costly_damage_obj(otmp);
-            if (s >= 0 && otmp->otyp >= GRAY_DRAGON_SCALES &&
-                otmp->otyp <= YELLOW_DRAGON_SCALES) {
-                /* dragon scales get turned into dragon scale mail */
-                pline(msgc_itemrepair, "Your %s merges and hardens!",
-                      xname(otmp));
-                setworn(NULL, W_MASK(os_arm));
-                /* assumes same order */
-                otmp->otyp =
-                    GRAY_DRAGON_SCALE_MAIL + otmp->otyp - GRAY_DRAGON_SCALES;
-                otmp->cursed = 0;
-                if (sobj->blessed) {
-                    otmp->spe++;
-                    otmp->blessed = 1;
-                }
-                otmp->known = 1;
-                setworn(otmp, W_MASK(os_arm));
-                *known = TRUE;
-                if (otmp->unpaid && s > 0)
-                    adjust_bill_val(otmp);
+            if (s >= 0 && otmp->otyp >= FIRST_DRAGON_SCALES &&
+                otmp->otyp <= LAST_DRAGON_SCALES) {
+                /* If there were body armor under the scales, we'd have handled
+                   things up above.  Ergo, this is the other case, wherein the
+                   scales get applied to the wearer as a polymorph. */
+                polyself(FALSE);
                 break;
             }
             pline((otmp->known && s == 0) ? msgc_failrandom :
@@ -1106,13 +1220,17 @@ seffects(struct obj *sobj, boolean *known)
            monsters are not visible */
         break;
     case SCR_ENCHANT_WEAPON:
-        if (uwep && (uwep->oclass == WEAPON_CLASS || is_weptool(uwep))
-            && confused) {
-            /* oclass check added 10/25/86 GAN */
+        if (uwep && confused) {
+            /* oclass check added 10/25/86 GAN but altered in Fourk:  we now
+               allow non-weapons to be made durable, but we only repair existing
+               damage on weapons and weapon tools. */
             uwep->oerodeproof = !(sobj->cursed);
             if (Blind) {
                 uwep->rknown = FALSE;
-                pline(msgc_nospoil, "Your weapon feels warm for a moment.");
+                pline(msgc_nospoil, "Your %s feels warm for a moment.",
+                      (uwep && (uwep->oclass == WEAPON_CLASS ||
+                                is_weptool(uwep))) ? "weapon" :
+                      distant_name(uwep, xname));
             } else {
                 uwep->rknown = TRUE;
                 pline(sobj->cursed ? msgc_itemloss : msgc_itemrepair,
@@ -1121,7 +1239,8 @@ seffects(struct obj *sobj, boolean *known)
                       hcolor(sobj->cursed ? "purple" : "golden"),
                       sobj->cursed ? "glow" : "shield");
             }
-            if (uwep->oerodeproof && (uwep->oeroded || uwep->oeroded2)) {
+            if (uwep->oerodeproof && (uwep->oeroded || uwep->oeroded2) &&
+                (uwep->oclass == WEAPON_CLASS || is_weptool(uwep))) {
                 uwep->oeroded = uwep->oeroded2 = 0;
                 pline_implied(msgc_itemrepair, "Your %s as good as new!",
                               aobjnam(uwep, Blind ? "feel" : "look"));
@@ -1951,14 +2070,14 @@ do_genocide(int how)
             }
 
             if (!(ptr->geno & G_GENO)) {
-                if (canhear()) {
+                if (canhear())
                     /* fixme: unconditional "caverns" will be silly in some
                        circumstances */
                     pline(msgc_npcvoice,
                           "A thunderous voice booms through the caverns:");
-                    verbalize(msgc_hint, "No, %s!  That will not be done.",
-                              mortal_or_creature(youmonst.data, TRUE));
-                }
+                /* This part you can hear in your mind even if deaf: */
+                verbalize(msgc_hint, "No, %s!  That will not be done.",
+                          mortal_or_creature(youmonst.data, TRUE));
                 continue;
             }
             if (is_human(ptr))

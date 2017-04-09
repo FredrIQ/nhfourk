@@ -85,6 +85,8 @@
 # define HHallucination         u.uintrinsic[HALLUC]
 # define Hallucination          u_any_property(HALLUC)
 # define Halluc_resistance      u_any_property(HALLUC_RES)
+# define HDeaf                  u.uintrinsic[DEAF]
+# define Deaf                   u_any_property(DEAF)
 # define HFumbling              u.uintrinsic[FUMBLING]
 # define Fumbling               u_any_property(FUMBLING)
 # define HSleeping              u.uintrinsic[SLEEPING]
@@ -246,6 +248,7 @@ enum FLAG_ENUM helpless_mask {
 /* The game's player conducts.
  * Editing this enum will break save compatibility. */
 enum player_conduct {
+    /* If adding any easy conducts, update is_nontrivial_conduct in pray.c */
     conduct_first = 0,
     conduct_food = conduct_first,        /* eaten any comestible */
     conduct_vegan,                       /* ... or any animal byproduct */
@@ -276,6 +279,7 @@ enum player_conduct {
     conduct_invisible,                   /* were invisible */
     conduct_displacement,                /* were displaced */
     conduct_reflection,                  /* had reflection */
+    conduct_boughtprotection,            /* "donated" gold for protection */
     num_conducts,
 };
 

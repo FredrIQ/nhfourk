@@ -305,6 +305,8 @@ dig(void)
         return 0;
     }
 
+    achievement(achieve_dig);
+
     u.uoccupation_progress[tos_dig] +=
         10 + rn2(5) + abon() +
         (uwep ? (uwep->spe - greatest_erosion(uwep)) : 0) + u.udaminc;
@@ -833,6 +835,8 @@ dighole(boolean pit_only, boolean instant)
                 lava_effects();
             else if (!Wwalking)
                 drown();
+            else
+                identify_ww_source();
         }
         return TRUE;
 
@@ -1170,7 +1174,8 @@ watch_warn(struct monst *mtmp, xchar x, xchar y, boolean zap)
 
             if (zap || mtmp->msuspicious) {
 
-                verbalize(msgc_npcanger, "Halt, vandal!  You're under arrest!");
+                mon_yells(mtmp, msgc_npcanger,
+                          "Halt, vandal!  You're under arrest!");
                 angry_guards(!canhear());
 
             } else {
@@ -1189,11 +1194,8 @@ watch_warn(struct monst *mtmp, xchar x, xchar y, boolean zap)
                 else
                     str = "architecture"; /* should be unreachable */
 
-                pline(msgc_npcvoice,
-                      "%s sees what you're doing, and yells at you.",
-                      Amonnam(mtmp));
-                verbalize(msgc_npcvoice, "Hey, stop messing with that %s!",
-                          str);
+                mon_yells(mtmp, msgc_levelwarning,
+                          msgprintf("Hey, stop messing with that %s!", str));
             }
             action_interrupted();
         }
