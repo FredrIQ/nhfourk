@@ -359,7 +359,7 @@ version_id_string(char *outbuf, const char *build_date,
     strcpy(&subbuf[1], PORT_SUB_ID);
 #endif
 
-    sprintf(outbuf, "%s NetHack%s version %s (%s) - last build %s.",
+    sprintf(outbuf, "%s NetHack Fourk%s version %s (%s) - last build %s.",
             PORT_ID, subbuf, version_string(versbuf),
             specific_version, build_date);
     return outbuf;
@@ -1190,13 +1190,7 @@ do_objs(const char *outfile)
         if (!(objnam = tmpdup(OBJ_NAME(objects[i]))))
             continue;
 
-        /* make sure probabilities add up to 1000 */
         if (objects[i].oc_class != class) {
-            if (sum && sum != 1000) {
-                fprintf(stderr, "prob error for class %d (%d%%)", class, sum);
-                fflush(stderr);
-                sumerr = TRUE;
-            }
             class = objects[i].oc_class;
             sum = 0;
         }

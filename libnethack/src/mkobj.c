@@ -138,53 +138,28 @@ mkobj(struct level *lev, char oclass, boolean artif, enum rng rng)
 struct obj *
 mkobj_of_class(struct level *lev, char oclass, boolean artif, enum rng rng)
 {
-    int i, prob = 1 + rn2_on_rng(1000, rng);
-
-    if (oclass == RANDOM_CLASS) {
+    if (oclass == RANDOM_CLASS)
         impossible("mkobj_of_class called with RANDOM_CLASS");
-    }
 
+    int i;
+    int first_id = bases[(int) oclass];
+    int final_id = bases[oclass + 1] - 1;
+
+    /* Precious gems start off elsewhere depending on dungeon level */
     if (oclass == GEM_CLASS) {
-        int gems = LAST_GEM - bases[GEM_CLASS] + 1, num = gems, total;
-        int z = ledger_no(&lev->z), removed = 0;
-        int j;
-
-        for (j = 0; objects[j + bases[GEM_CLASS]].oc_class == GEM_CLASS; ++j)
-            ;
-
-        total = j;
-
-        int probs[total];
-
-        for (j = 0; j < 9 - z / 3; ++j) {
-            if (j >= gems)
-                panic("Not enough gems: on dlevel %d needed %d gems.", z, j);
-
-            removed += objects[bases[GEM_CLASS] + j].oc_prob;
-            probs[j] = 0;
-            --num;
-        }
-
-        for (; j < gems; ++j)
-            /* Here we redistribute the probability removed. The +1 at the end
-             * is to ensure that we don't round to a sum less than 1000: going
-             * over is ok, but going under might cause a panic. */
-            probs[j] = ((objects[j + bases[GEM_CLASS]].oc_prob * num + removed)
-                         / num) + 1;
-
-        for (; j < total; ++j)
-            probs[j] = objects[j + bases[GEM_CLASS]].oc_prob;
-
-        j = 0;
-        while ((prob -= probs[j]) > 0)
-            j++;
-
-        i = j + bases[GEM_CLASS];
-    } else {
-        i = bases[(int)oclass];
-        while ((prob -= objects[i].oc_prob) > 0)
-            i++;
+        int z = ledger_no(&lev->z) / 3;
+        if (z < 9)
+            first_id += (9 - z);
     }
+
+    int prob = 0;
+    for (i = first_id; i <= final_id; i++)
+        prob += objects[i].oc_prob;
+
+    prob = 1 + rn2_on_rng(prob, rng);
+    i = bases[(int)oclass];
+    while ((prob -= objects[i].oc_prob) > 0)
+        i++;
 
     if (objects[i].oc_class != oclass || !OBJ_NAME(objects[i]))
         panic("probtype error, oclass=%d i=%d", (int)oclass, i);
@@ -544,6 +519,18 @@ mksobj(struct level *lev, int otyp, boolean init, boolean artif, enum rng rng)
             if (is_poisonable(otmp) && !rn2_on_rng(100, rng))
                 otmp->opoisoned = 1;
 
+            if ((otmp->spe == 0) && !otmp->blessed && !otmp->cursed &&
+                !rn2_on_rng(4, rng)) {
+                /* It's boring if practically everything is +0 and uncursed. */
+                int sign = rn2_on_rng(3,rng) ? -1 : 1;
+                otmp->spe = sign *
+                    (((10 + depth(&lev->z)) / 15) + rne_on_rng(2, rng));
+                if (sign < 0)
+                    curse(otmp);
+                else
+                    otmp->blessed = 1;
+            }
+
             if (artif && !rn2_on_rng(20, rng))
                 otmp = mk_artifact(lev, otmp, (aligntyp) A_NONE, rng);
             else if ((otmp->spe > (1 + rn2_on_rng(5, rng))) && (!otmp->cursed))
@@ -691,7 +678,7 @@ mksobj(struct level *lev, int otyp, boolean init, boolean artif, enum rng rng)
                 blessorcurse(otmp, 10, rng);
                 break;
             case CRYSTAL_BALL:
-                otmp->spe = 1 + rn2_on_rng(5, rng);
+                otmp->spe = 1 + rn2_on_rng(25, rng);
                 blessorcurse(otmp, 2, rng);
                 break;
             case HORN_OF_PLENTY:

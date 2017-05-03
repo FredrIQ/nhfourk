@@ -61,6 +61,9 @@ Chronological Changelog (most recent at top):
 Changes in 4.3.0.5:
 -------------------
 
+ * Weapons are now 25% less likely to be generated as boring
+   uncursed +0 weapons.
+
  * Iron weapons do bonus damage against elves and sylphs.
    (This bonus is smaller than the silver damage bonus, however.)
 
@@ -341,6 +344,24 @@ Changes in 4.3.0.5:
 
 Changes in 4.3.0.4:
 -------------------
+
+ * Polymorphing into a python or other snake-like creature no longer
+   breaks your armor, unless the target form is huge or gigantic
+   (e.g., long worm) or humanoid (e.g., salamander).  Instead of
+   breaking your armor, you now slither out of it.
+
+ * Crystal balls get up to 25 charges.  Using a crystal ball
+   no longer requires you to pass an intelligence check (but
+   can still fail if the ball is cursed).
+
+ * Explore mode now gives the player a scroll of wishing.
+   (This was necessary to allow testing non-wizmode use of their
+   higher wish quality, since wizmode wishes are even _higher_
+   quality and will give the player basically anything.)
+
+ * Food no longer has a random 1/7 chance to be rotten when you
+   eat it.  (Food is still rotten when cursed, and old eggs
+   and corpses behave the same as before.)
 
  * There are now always three potions of hallucination available at
    Delphi.  (One possible use for them is to dodge luck penalties
@@ -1386,7 +1407,8 @@ Changes in 4.3.0.1:
    ways.  However, it also makes flavor sense, IMO, to have a lot
    of rocks laying around.
 
- * Wands of wishing are no longer rechargeable.
+ * Wands of wishing are no longer rechargeable.  However, several
+   scrolls of wishing are available in strategic locations.
 
  * Role rebalance, round one.
    + Starting inventory has been adjusted for some roles: a bit more
